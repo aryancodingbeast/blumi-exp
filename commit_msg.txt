@@ -1,0 +1,6 @@
+feat: update shop page with comic styling
+
+- Purple accent on shop header
+- Yellow count badge
+- Comic card grid layout
+- Comic sort dropdown

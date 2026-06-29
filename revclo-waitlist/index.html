@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>REVCLO — Campus Waitlist</title>
+  <link rel="stylesheet" href="style.css">
+  
+  <!-- SEO Tags -->
+  <meta name="description" content="Get 15-minute early access to the exclusive campus-only thrift drop by REVCLO at IGDTUW. Limited pieces from my closet. No restocks.">
+  <meta property="og:title" content="REVCLO — Campus Waitlist">
+  <meta property="og:description" content="First campus-only thrift drop. Limited Y2K pieces from my closet. Waitlist members get early access.">
+  <meta property="og:type" content="website">
+
+  <!-- GSAP for micro-animations -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <!-- Supabase CDN Client -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+  <!-- Custom Cursor Elements -->
+  <div id="custom-cursor"></div>
+  <div id="custom-cursor-follower"></div>
+
+  <div class="container">
+    
+    <!-- HEADER -->
+    <header>
+      <a href="#" class="brand-logo" id="logo-nav">REVCLO<span>&lt;3</span></a>
+      <div class="header-badge" id="header-status-badge">15m Early Access Active</div>
+    </header>
+
+    <!-- VIEWS CONTAINER -->
+    <main>
+
+      <!-- 1. LANDING VIEW -->
+      <section id="view-landing" class="view-section active">
+        <div class="hero-wrapper">
+          <div class="hero-subtext-badge">EXCLUSIVE CAMPUS THRIFT DROP</div>
+          <h1 class="hero-title">REVCLO IS COMING TO <em>IGDTUW</em></h1>
+          <p class="hero-subtext">
+            First campus-only thrift drop. Limited pieces from my closet. 
+            <b>Waitlist members get 15-minute early access</b> before general release.
+          </p>
+          
+          <!-- Waitlist Closed Notice -->
+          <div id="waitlist-closed-notice" class="waitlist-closed-container" style="display: none;">
+            <h2 class="waitlist-closed-title">FULLY CLOCKED IN &lt;3</h2>
+            <p class="waitlist-closed-text">
+              We have officially reached maximum capacity. All early-access tickets are locked. 
+              Thank you to all 147+ girls who secured their spots! Get ready for the drop.
+            </p>
+            <div class="waitlist-closed-badge-mini">WAITLIST CLOSED</div>
+          </div>
+          
+          <button class="cta-button" id="btn-clock-it">Clock it ⏰</button>
+
+          <!-- Why Join Tags -->
+          <div class="benefits-container">
+            <div class="benefit-card">
+              <div class="benefit-icon">🎁</div>
+              <h3 class="benefit-title">Early Access</h3>
+              <p class="benefit-description">Shop the drop 15 minutes before the public. Beat the crowd.</p>
+            </div>
+            <div class="benefit-card">
+              <div class="benefit-icon">📸</div>
+              <h3 class="benefit-title">Sneak Peek</h3>
+              <p class="benefit-description">Browse pieces and pricing inside the catalog before we launch.</p>
+            </div>
+            <div class="benefit-card">
+              <div class="benefit-icon">💌</div>
+              <h3 class="benefit-title">Limited Pieces</h3>
+              <p class="benefit-description">Handpicked individual items. Once they sell out, they are gone forever.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Polaroid Dynamic Background Stack -->
+        <div class="polaroid-stack">
+          <div class="polaroid polaroid-1" style="--rotation: -10deg;">
+            <img src="assets/user_photo_1.jpg" alt="Thrift Drop Leather Outfit">
+          </div>
+          <div class="polaroid polaroid-2" style="--rotation: 8deg;">
+            <img src="assets/user_photo_2.jpg" alt="Thrift Store Mirror Selfie">
+          </div>
+          <div class="polaroid polaroid-3" style="--rotation: 5deg;">
+            <img src="assets/user_photo_3.png" alt="Rooftop Night Styles">
+          </div>
+        </div>
+      </section>
+
+      <!-- 2. FORM VIEW -->
+      <section id="view-form" class="view-section">
+        <div class="form-panel">
+          <div class="form-header">
+            <h2>Enter the Waitlist</h2>
+            <p>Fill out the details to lock your spot in line.</p>
+          </div>
+          
+          <form id="waitlist-form" novalidate>
+            <div class="form-group">
+              <label class="form-label" for="user-name">Full Name</label>
+              <input type="text" id="user-name" class="form-input" placeholder="e.g. Ananya Sharma" required>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="user-email">IGDTUW Email ID</label>
+              <input type="email" id="user-email" class="form-input" placeholder="e.g. ananya001bt24@igdtuw.ac.in" required>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">College Year</label>
+              <div class="radio-grid">
+                <label>
+                  <input type="radio" name="user-year" value="1st year" checked>
+                  <div class="radio-tile">1st Yr</div>
+                </label>
+                <label>
+                  <input type="radio" name="user-year" value="2nd year">
+                  <div class="radio-tile">2nd Yr</div>
+                </label>
+                <label>
+                  <input type="radio" name="user-year" value="3rd year">
+                  <div class="radio-tile">3rd Yr</div>
+                </label>
+                <label>
+                  <input type="radio" name="user-year" value="4th year">
+                  <div class="radio-tile">4th Yr</div>
+                </label>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="user-instagram">Instagram Username</label>
+              <input type="text" id="user-instagram" class="form-input" placeholder="e.g. @ananya.styles" required>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">What are you interested in?</label>
+              <div class="checkbox-stack">
+                <label>
+                  <input type="radio" name="user-interest" value="Buying" checked>
+                  <div class="checkbox-tile">
+                    <span class="checkbox-custom"></span>
+                    <span>Buying Thrift Items</span>
+                  </div>
+                </label>
+                <label>
+                  <input type="radio" name="user-interest" value="Selling in future">
+                  <div class="checkbox-tile">
+                    <span class="checkbox-custom"></span>
+                    <span>Selling in the Future</span>
+                  </div>
+                </label>
+                <label>
+                  <input type="radio" name="user-interest" value="Both">
+                  <div class="checkbox-tile">
+                    <span class="checkbox-custom"></span>
+                    <span>Both Buying &amp; Selling</span>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <button type="submit" class="form-submit-btn" id="btn-submit-form">Clock it ⏰</button>
+          </form>
+
+          <div class="back-to-landing">
+            <a href="#" id="link-back-landing">← Cancel &amp; Go Back</a>
+          </div>
+        </div>
+      </section>
+
+      <!-- 3. SUCCESS VIEW -->
+      <section id="view-success" class="view-section">
+        <div class="success-card">
+          <div class="success-badge">💖</div>
+          <h2 class="success-title">You're clocked in</h2>
+          <p class="success-subtitle">
+            Your place in line is locked. Early access begins at <b>8:45 PM</b> on Thursday.
+          </p>
+
+          <div class="ticket-container">
+            <div class="ticket-label">Waitlist Position</div>
+            <div class="ticket-number" id="success-user-number">User #27</div>
+            <div class="ticket-status">Waitlist Member = TRUE</div>
+          </div>
+
+          <div class="success-quotes">
+            "Limited pieces. No restocks. Standing on business 🫡"
+          </div>
+
+          <div class="success-buttons">
+            <button class="success-btn" id="btn-share-friends">Share with Friends 🔗</button>
+            <button class="success-btn success-btn-secondary" id="btn-go-countdown">Go to Countdown ⏰</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 4. COUNTDOWN VIEW -->
+      <section id="view-countdown" class="view-section">
+        <div class="countdown-wrapper">
+          <h2 class="countdown-title">DROP GOES LIVE IN</h2>
+          <p id="countdown-target-display" style="font-family: var(--font-mono); font-size: 0.85rem; letter-spacing: 0.15em; color: var(--color-pink); margin-top: -2rem; margin-bottom: 3.5rem; text-transform: uppercase; opacity: 0.8;"></p>
+
+          <!-- TIMER GRID -->
+          <div class="timer-container">
+            <div class="timer-box">
+              <div class="timer-val" id="time-days">00</div>
+              <div class="timer-unit">Days</div>
+            </div>
+            <div class="timer-box">
+              <div class="timer-val" id="time-hours">12</div>
+              <div class="timer-unit">Hours</div>
+            </div>
+            <div class="timer-box">
+              <div class="timer-val" id="time-mins">25</div>
+              <div class="timer-unit">Mins</div>
+            </div>
+            <div class="timer-box">
+              <div class="timer-val" id="time-secs">36</div>
+              <div class="timer-unit">Secs</div>
+            </div>
+          </div>
+
+          <!-- DYNAMIC STATS -->
+          <div class="countdown-stats">
+            <div class="stat-item">
+              <div class="stat-val" id="stat-girls">147 💖</div>
+              <div class="stat-label">Waitlist Girls</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-val">33 ✨</div>
+              <div class="stat-label">Pieces Dropping</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-val">1 &lt;3</div>
+              <div class="stat-label">Closets Opening</div>
+            </div>
+          </div>
+
+          <!-- ROTATING JOKES TICKER -->
+          <div class="rotating-quotes-box">
+            <p class="rotating-quote" id="rotating-quote-text">Someone is about to steal your future favorite hoodie 🕶️</p>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- FOOTER -->
+    <footer>
+      <div>REVCLO THRIFT DROP © 2026</div>
+      <div class="footer-links">
+        <a href="#" id="footer-link-rules">CAMPUS DROP SYSTEM</a>
+        <a href="#" id="btn-reset-demo">RESET DEMO STATE</a>
+      </div>
+    </footer>
+
+  </div>
+
+  <script src="app.js?v=1.0.5"></script>
+</body>
+</html>
