@@ -4,14 +4,14 @@ import { CartProvider } from '@/components/CartContext'
 import SmoothScrollManager from '@/components/SmoothScrollManager'
 import GSAPProvider from '@/components/GSAPProvider'
 import CartDrawer from '@/components/CartDrawer'
-import { DM_Sans, Fredoka, JetBrains_Mono, Bangers } from 'next/font/google'
+import { Playfair_Display, Outfit, Caveat, JetBrains_Mono } from 'next/font/google'
 import { Suspense } from 'react'
 import '@/styles/globals.css'
 
-const dmSans = DM_Sans({ subsets: ['latin'], variable: '--font-body', weight: ['400', '500', '700'] })
-const fredoka = Fredoka({ subsets: ['latin'], variable: '--font-display', weight: ['600', '700'] })
+const playfair = Playfair_Display({ subsets: ['latin'], variable: '--font-serif', weight: ['400', '600', '700'] })
+const outfit = Outfit({ subsets: ['latin'], variable: '--font-sans', weight: ['300', '400', '500', '600'] })
+const caveat = Caveat({ subsets: ['latin'], variable: '--font-caveat', weight: ['400'] })
 const jetbrains = JetBrains_Mono({ subsets: ['latin'], variable: '--font-mono' })
-const bangers = Bangers({ subsets: ['latin'], variable: '--font-heading', weight: '400' })
 
 export const dynamic = 'force-dynamic'
 
@@ -21,8 +21,8 @@ export default async function RootLayout({
     children: React.ReactNode
 }) {
     return (
-        <html lang="en" className={`${dmSans.variable} ${fredoka.variable} ${jetbrains.variable} ${bangers.variable}`}>
-            <body className="paper-noise premium-dark-theme">
+        <html lang="en" className={`${outfit.variable} ${playfair.variable} ${caveat.variable} ${jetbrains.variable}`}>
+            <body className="paper-noise">
                 <CartProvider>
                     <GSAPProvider>
                         <Suspense fallback={<Header session={null} />}>

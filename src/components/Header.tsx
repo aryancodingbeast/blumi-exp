@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { signIn, signOut } from 'next-auth/react'
 import HeaderCart from './HeaderCart'
+import { Repeat2, Heart, Shirt } from 'lucide-react'
 
 interface HeaderProps {
     session: any
@@ -19,29 +20,29 @@ export default function Header({ session }: HeaderProps) {
             </div>
             
             <div className="nav-right">
-                <Link href="/shop" className="nav-anchor-btn">
-                    SHOP
+                <Link href="/swipe" className="nav-anchor-btn nav-swipe-btn">
+                    <Repeat2 size={14} className="nav-icon" />
+                    <span className="desktop-nav-text">SWIPE</span>
+                    <span className="mobile-nav-text">SWIPE</span>
                 </Link>
                 
                 {session ? (
                     <>
-                        <Link href="/orders" className="nav-anchor-btn">
+                        <Link href="/closet" className="nav-anchor-btn">
+                            <Shirt size={14} className="nav-icon" />
                             <span className="desktop-nav-text">MY CLOSET</span>
                             <span className="mobile-nav-text">CLOSET</span>
                         </Link>
-                        
-                        <Link href="/seller" className="nav-anchor-btn">
-                            {session.user?.role === 'SELLER' ? (
-                                <>
-                                    <span className="desktop-nav-text">SELLER HUB</span>
-                                    <span className="mobile-nav-text">SELLER</span>
-                                </>
-                            ) : (
-                                <>
-                                    <span className="desktop-nav-text">BECOME A SELLER</span>
-                                    <span className="mobile-nav-text">SELLER</span>
-                                </>
-                            )}
+
+                        <Link href="/matches" className="nav-anchor-btn">
+                            <span className="desktop-nav-text">MATCHES</span>
+                            <span className="mobile-nav-text">MATCHES</span>
+                        </Link>
+
+                        <Link href="/liked" className="nav-anchor-btn">
+                            <Heart size={14} className="nav-icon" />
+                            <span className="desktop-nav-text">LIKED</span>
+                            <span className="mobile-nav-text">LIKED</span>
                         </Link>
                         
                         <HeaderCart />

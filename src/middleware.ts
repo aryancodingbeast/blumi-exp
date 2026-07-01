@@ -10,7 +10,12 @@ export function middleware(request: NextRequest) {
                          request.cookies.get('next-auth.session-token')?.value ||
                          request.cookies.get('__Secure-next-auth.session-token')?.value
 
-    const isProtectedPage = pathname.startsWith('/checkout') || pathname.startsWith('/orders')
+    const isProtectedPage = pathname.startsWith('/checkout') || 
+                            pathname.startsWith('/orders') ||
+                            pathname.startsWith('/swipe') ||
+                            pathname.startsWith('/closet') ||
+                            pathname.startsWith('/matches') ||
+                            pathname.startsWith('/liked')
 
     if (isProtectedPage && !sessionToken) {
         const callbackUrl = encodeURIComponent(pathname)
@@ -21,5 +26,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-    matcher: ['/checkout/:path*', '/orders/:path*']
+    matcher: ['/checkout/:path*', '/orders/:path*', '/swipe/:path*', '/closet/:path*', '/matches/:path*', '/liked/:path*']
 }

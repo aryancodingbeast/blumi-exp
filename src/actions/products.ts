@@ -15,7 +15,7 @@ export async function getProducts() {
         try {
             const { data, error } = await supabaseAdmin
                 .from('products')
-                .select('id, title, description, price, images, status, created_at')
+                .select('id, title, description, price, images, status, size, category, condition, brand, available_for_exchange, seller_id, created_at')
                 .in('status', ['ACTIVE', 'SOLD'])
                 .order('created_at', { ascending: false })
 
@@ -47,7 +47,7 @@ export async function searchProducts(query: string) {
 
     const { data, error } = await supabaseAdmin
         .from('products')
-        .select('id, title, description, price, images, status, created_at')
+        .select('id, title, description, price, images, status, size, category, condition, brand, available_for_exchange, seller_id, created_at')
         .in('status', ['ACTIVE', 'SOLD'])
         .or(`title.ilike.%${query}%,description.ilike.%${query}%`)
         .limit(10)
@@ -70,7 +70,7 @@ export async function getProductById(id: string) {
 export async function getRelatedProducts(productId: string) {
     const { data, error } = await supabaseAdmin
         .from('products')
-        .select('id, title, description, price, images, status, created_at')
+        .select('id, title, description, price, images, status, size, category, condition, brand, available_for_exchange, seller_id, created_at')
         .in('status', ['ACTIVE', 'SOLD'])
         .neq('id', productId)
         .limit(4)
@@ -122,6 +122,10 @@ async function uploadBase64ToStorage(base64Str: string, productId: string, index
     }
 }
 
+/**
+ * Create a product with full swap-platform fields.
+ * Used by the /closet/add listing form.
+ */
 export async function createProduct(formData: FormData) {
     const session = await auth()
     if (!session?.user?.id) {
@@ -131,8 +135,16 @@ export async function createProduct(formData: FormData) {
 
     const title = formData.get('title') as string
     const description = formData.get('description') as string
-    const price = parseFloat(formData.get('price') as string)
+    const price = parseFloat(formData.get('price') as string || '0')
     const images = JSON.parse(formData.get('images') as string || '[]') as string[]
+    const size = (formData.get('size') as string) || 'Free Size'
+    const category = (formData.get('category') as string) || 'Tops'
+    const condition = (formData.get('condition') as string) || 'Good'
+    const brand = (formData.get('brand') as string) || ''
+
+    if (images.length < 4) {
+        throw new Error('Please upload at least 4 images.')
+    }
 
     const productId = crypto.randomUUID()
     const uploadedUrls: string[] = []
@@ -151,7 +163,12 @@ export async function createProduct(formData: FormData) {
             price,
             images: uploadedUrls,
             seller_id: userId,
-            status: 'ACTIVE' as ProductStatus
+            status: 'ACTIVE' as ProductStatus,
+            size,
+            category,
+            condition,
+            brand,
+            available_for_exchange: true
         })
         .select()
         .single()
@@ -159,8 +176,52 @@ export async function createProduct(formData: FormData) {
     if (error) handleSupabaseError(error)
 
     revalidatePath('/')
-    revalidatePath('/seller')
+    revalidatePath('/closet')
     return data as Product
+}
+
+/**
+ * Get all products listed by a specific user (for "My Closet")
+ */
+export async function getUserProducts(userId?: string): Promise<Product[]> {
+    const session = await auth()
+    const targetUserId = userId || session?.user?.id
+    if (!targetUserId) return []
+
+    const { data, error } = await supabaseAdmin
+        .from('products')
+        .select('*')
+        .eq('seller_id', targetUserId)
+        .in('status', ['ACTIVE', 'EXCHANGED'])
+        .order('created_at', { ascending: false })
+
+    if (error) {
+        console.error('[getUserProducts] Error:', error)
+        return []
+    }
+    return data as Product[]
+}
+
+/**
+ * Get user's products that are available for exchange (for the exchange selector)
+ */
+export async function getExchangeableProducts(): Promise<Product[]> {
+    const session = await auth()
+    if (!session?.user?.id) return []
+
+    const { data, error } = await supabaseAdmin
+        .from('products')
+        .select('*')
+        .eq('seller_id', session.user.id)
+        .eq('status', 'ACTIVE')
+        .eq('available_for_exchange', true)
+        .order('created_at', { ascending: false })
+
+    if (error) {
+        console.error('[getExchangeableProducts] Error:', error)
+        return []
+    }
+    return data as Product[]
 }
 
 export async function getSellerProducts(userId: string) {

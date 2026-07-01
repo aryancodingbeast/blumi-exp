@@ -1,253 +1,184 @@
-import { getProducts } from '@/actions/products'
 import Link from 'next/link'
-import ParallaxImage from '@/components/ParallaxImage'
-import CustomLoader from '@/components/CustomLoader'
-import dynamic from 'next/dynamic'
-
-const GlobePulse = dynamic(
-  () => import('@/components/ui/cobe-globe-pulse').then(mod => mod.GlobePulse),
-  { ssr: false }
-)
-import { Instagram } from 'lucide-react'
-import { Product } from '@/types'
 import Image from 'next/image'
+import { ArrowRight, Repeat2, Heart, ShoppingBag, Shirt } from 'lucide-react'
 
-export default async function LandingPage() {
-  let allProducts: Product[] = []
-  try {
-    allProducts = await getProducts()
-  } catch (err) {
-    console.error('[LandingPage] Failed to fetch products from Supabase:', err)
-  }
-  const featuredProducts = allProducts
-    ? allProducts.filter(p => {
-        if (p.title.includes('TEST')) return false
-        if (p.price < 10) return false
-        const img = p.images?.[0] || ''
-        if (img.startsWith('/collage')) return false
-        return true
-      }).slice(0, 6)
-    : []
+export default function LandingPage() {
+    return (
+        <div className="premium-dark-theme swap-landing">
 
-  interface DisplayProduct {
-    id: string
-    name: string
-    titleLine1: string
-    titleLine2: string
-    price: number
-    image: string
-    type: 'model' | 'packshot'
-    status?: string
-  }
+            {/* HERO SECTION */}
+            <section className="swap-hero">
+                {/* Background glow effects */}
+                <div className="swap-hero-glow-1" />
+                <div className="swap-hero-glow-2" />
 
-  // Exact streetwear assets matching the reference mockup
-  const fallbackProducts: DisplayProduct[] = [
-    {
-      id: '1',
-      name: 'EDITORIAL.01 NEWS PRINT',
-      titleLine1: 'EDITORIAL.01',
-      titleLine2: 'NEWS PRINT',
-      price: 240,
-      image: '/collage-4.webp',
-      type: 'model'
-    },
-    {
-      id: '2',
-      name: 'EDITORIAL.02 SATIN BUSTIER',
-      titleLine1: 'EDITORIAL.02',
-      titleLine2: 'SATIN BUSTIER',
-      price: 290,
-      image: '/collage-2.webp',
-      type: 'packshot'
-    },
-    {
-      id: '3',
-      name: 'METALLIC COMPRESSION CROSS',
-      titleLine1: 'METALLIC COMPRESSION',
-      titleLine2: 'CROSS',
-      price: 180,
-      image: '/collage-3.webp',
-      type: 'model'
-    },
-    {
-      id: '4',
-      name: 'ASYMMETRIC CROCHET HALTER',
-      titleLine1: 'ASYMMETRIC',
-      titleLine2: 'CROCHET HALTER',
-      price: 480,
-      image: '/collage-1.webp',
-      type: 'model'
-    },
-    {
-      id: '5',
-      name: 'STREETWEAR STRIPED TUBE',
-      titleLine1: 'STREETWEAR',
-      titleLine2: 'STRIPED TUBE',
-      price: 350,
-      image: '/collage-5.webp',
-      type: 'model'
-    },
-    {
-      id: '6',
-      name: 'EDITORIAL.06 SEQUIN SLIP',
-      titleLine1: 'EDITORIAL.06',
-      titleLine2: 'SEQUIN SLIP',
-      price: 320,
-      image: '/collage-6.webp',
-      type: 'packshot'
-    }
-  ]
+                <div className="swap-hero-content">
+                    <div className="swap-hero-badge">
+                        <Repeat2 size={14} />
+                        <span>CLOTHES EXCHANGE PLATFORM</span>
+                    </div>
 
-  const displayProducts: DisplayProduct[] = featuredProducts.length >= 6
-    ? featuredProducts.map((p, idx) => {
-        const fallback = fallbackProducts[idx];
-        return {
-          id: p.id,
-          name: p.title,
-          titleLine1: p.title.split(' ').slice(0, 2).join(' ').toUpperCase(),
-          titleLine2: p.title.split(' ').slice(2).join(' ').toUpperCase() || 'PIECE',
-          price: p.price,
-          image: fallback.image,
-          type: fallback.type,
-          status: p.status
-        };
-      })
-    : fallbackProducts.map(p => ({ ...p, status: 'ACTIVE' }));
+                    <h1 className="swap-hero-title">
+                        <span className="swap-hero-line-1">SWAP.</span>
+                        <span className="swap-hero-line-2">DON&apos;T SHOP.</span>
+                    </h1>
 
-  return (
-    <div className="premium-dark-theme page-streetwear-root">
-      <CustomLoader />
+                    <p className="swap-hero-subtitle">
+                        List your clothes. Swipe through others. Match and exchange — Tinder-style.
+                        No money needed. Just great taste.
+                    </p>
 
-      {/* SECTION 1: HERO VIEWPORT - 3 STARK COLUMNS */}
-      <section className="streetwear-hero">
-        <div className="hero-left-col">
-          <div className="drop-identifier-group">
-            <h1 className="huge-drop-number">SYS_001_</h1>
-            <span className="vertical-collection-label">COLLECTION</span>
-          </div>
-          <div className="active-drop-pill">
-            ACTIVE DROP
-          </div>
+                    <div className="swap-hero-actions">
+                        <Link href="/closet/add" className="swap-btn-primary">
+                            LIST YOUR CLOTHES
+                            <ArrowRight size={16} />
+                        </Link>
+                        <Link href="/swipe" className="swap-btn-secondary">
+                            START SWIPING
+                        </Link>
+                    </div>
+
+                    {/* Animated Swap Visual */}
+                    <div className="swap-hero-visual">
+                        <div className="swap-card-demo swap-card-demo-left">
+                            <div className="swap-card-demo-inner">
+                                <Image
+                                    src="/collage-1.webp"
+                                    alt="Your clothes"
+                                    fill
+                                    style={{ objectFit: 'cover' }}
+                                />
+                                <div className="swap-card-demo-label">YOUR ITEM</div>
+                            </div>
+                        </div>
+                        <div className="swap-visual-arrows">
+                            <Repeat2 size={32} className="swap-visual-repeat" />
+                        </div>
+                        <div className="swap-card-demo swap-card-demo-right">
+                            <div className="swap-card-demo-inner">
+                                <Image
+                                    src="/collage-4.webp"
+                                    alt="Their clothes"
+                                    fill
+                                    style={{ objectFit: 'cover' }}
+                                />
+                                <div className="swap-card-demo-label">THEIR ITEM</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            {/* HOW IT WORKS */}
+            <section className="swap-how-section">
+                <div className="swap-how-header">
+                    <p className="swap-section-label">THE PROCESS_</p>
+                    <h2 className="swap-section-title">HOW IT WORKS</h2>
+                </div>
+
+                <div className="swap-how-grid">
+                    <div className="swap-how-step">
+                        <div className="swap-step-number">01</div>
+                        <div className="swap-step-icon">
+                            <Shirt size={28} />
+                        </div>
+                        <h3 className="swap-step-title">LIST YOUR CLOTHES</h3>
+                        <p className="swap-step-desc">
+                            Upload at least 4 photos of each item. Add size, brand, and condition details.
+                        </p>
+                    </div>
+
+                    <div className="swap-how-connector" />
+
+                    <div className="swap-how-step">
+                        <div className="swap-step-number">02</div>
+                        <div className="swap-step-icon">
+                            <Heart size={28} />
+                        </div>
+                        <h3 className="swap-step-title">SWIPE & DISCOVER</h3>
+                        <p className="swap-step-desc">
+                            Pick an item to offer, then swipe through others&apos; listings. Swipe right to like, left to pass.
+                        </p>
+                    </div>
+
+                    <div className="swap-how-connector" />
+
+                    <div className="swap-how-step">
+                        <div className="swap-step-number">03</div>
+                        <div className="swap-step-icon">
+                            <Repeat2 size={28} />
+                        </div>
+                        <h3 className="swap-step-title">MATCH & EXCHANGE</h3>
+                        <p className="swap-step-desc">
+                            When both of you swipe right on each other&apos;s offered items — it&apos;s a match! Confirm and exchange.
+                        </p>
+                    </div>
+
+                    <div className="swap-how-connector" />
+
+                    <div className="swap-how-step">
+                        <div className="swap-step-number">04</div>
+                        <div className="swap-step-icon">
+                            <ShoppingBag size={28} />
+                        </div>
+                        <h3 className="swap-step-title">OR JUST BUY</h3>
+                        <p className="swap-step-desc">
+                            Done swiping? Browse your liked items and buy any directly if you prefer.
+                        </p>
+                    </div>
+                </div>
+            </section>
+
+            {/* MATCH LOGIC EXPLAINER */}
+            <section className="swap-match-section">
+                <div className="swap-match-inner">
+                    <p className="swap-section-label">FAIR EXCHANGE_</p>
+                    <h2 className="swap-match-headline">
+                        A MATCH ONLY HAPPENS WHEN<br />
+                        <span className="swap-match-highlight">BOTH SIDES AGREE</span>
+                    </h2>
+                    <p className="swap-match-explainer">
+                        You pick an item to offer → Swipe right on their item → They pick their item to offer → Swipe right on your item → Only then, it&apos;s a match. Both must want what the other has. No exceptions.
+                    </p>
+
+                    <div className="swap-match-visual">
+                        <div className="swap-match-step-mini">
+                            <span className="mini-label">YOU</span>
+                            <span className="mini-action">SWIPE RIGHT</span>
+                            <ArrowRight size={14} />
+                            <span className="mini-target">THEIR ITEM</span>
+                        </div>
+                        <div className="swap-match-plus">+</div>
+                        <div className="swap-match-step-mini">
+                            <span className="mini-label">THEY</span>
+                            <span className="mini-action">SWIPE RIGHT</span>
+                            <ArrowRight size={14} />
+                            <span className="mini-target">YOUR ITEM</span>
+                        </div>
+                        <div className="swap-match-equals">=</div>
+                        <div className="swap-match-result">
+                            <Repeat2 size={18} />
+                            MATCH!
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            {/* FINAL CTA */}
+            <section className="swap-cta-section">
+                <div className="swap-cta-glow" />
+                <h2 className="swap-cta-title">REVCLO</h2>
+                <p className="swap-cta-subtitle">YOUR CLOSET IS SOMEONE ELSE&apos;S TREASURE</p>
+                <div className="swap-cta-actions">
+                    <Link href="/closet/add" className="swap-btn-primary swap-btn-lg">
+                        START LISTING
+                        <ArrowRight size={18} />
+                    </Link>
+                    <Link href="/login" className="swap-btn-secondary">
+                        SIGN IN WITH GOOGLE
+                    </Link>
+                </div>
+            </section>
         </div>
-
-        {/* Center Jumpsuit Model visual */}
-        <div className="hero-center-col">
-          <div className="hero-model-full-wrap">
-            <Image 
-              src="/hero-streetwear.webp" 
-              alt="Streetwear Jumpsuit Model" 
-              className="hero-model-full-image"
-              width={1200}
-              height={1800}
-              priority
-              quality={75}
-            />
-          </div>
-        </div>
-
-        {/* Right Asymmetric Display Headline */}
-        <div className="hero-right-col">
-          <div className="headline-typographic-stack">
-            <div className="headline-line horizontal-headline">
-              <span className="white-sans">CURATED.</span>
-              <span className="red-serif">LIMITED.</span>
-              <span className="white-sans">TIMELESS_</span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* WEBGL FLOATING CENTERPIECE CONTAINER */}
-      <div className="three-floating-torus-wrapper">
-        <GlobePulse className="three-canister-container" />
-      </div>
-
-      {/* SECTION 2: ASYMMETRIC COLLECTION GRID (MOSAIC COLLAGE) */}
-      <section className="streetwear-grid-container">
-        <div className="streetwear-mosaic-collage">
-          {displayProducts.slice(0, 6).map((product, idx) => {
-            const mosaicClasses = [
-              "mosaic-card-0", // Card 0: span 6, row span 2
-              "mosaic-card-1", // Card 1: span 3, row span 1
-              "mosaic-card-2", // Card 2: span 3, row span 2
-              "mosaic-card-3", // Card 3: span 3, row span 1
-              "mosaic-card-4", // Card 4: span 4, row span 2
-              "mosaic-card-5"  // Card 5: span 8, row span 2
-            ];
-
-            const aspectRatios = [
-              "1.2",
-              "1.1",
-              "0.55",
-              "1.1",
-              "0.75",
-              "1.5"
-            ];
-
-            return (
-              <div key={product.id} className={`mosaic-item ${mosaicClasses[idx]}`}>
-                <Link href={`/product/${product.id}`} prefetch={false} className="streetwear-card" style={{ display: 'block', height: '100%' }}>
-                  <div className={`card-image-wrap ${idx % 2 === 0 ? 'model-wrap' : 'packshot-wrap'}`} style={{ height: '100%', display: 'flex', flexDirection: 'column', position: 'relative' }}>
-                    <ParallaxImage 
-                      src={product.image} 
-                      alt={product.name} 
-                      aspectRatio={aspectRatios[idx]}
-                      drift={idx % 2 === 0 ? -20 : -10}
-                    />
-                    {product.status?.toUpperCase() === 'SOLD' && (
-                      <div style={{
-                        position: 'absolute',
-                        inset: 0,
-                        background: 'rgba(0,0,0,0.8)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        zIndex: 3
-                      }}>
-                        <span style={{
-                            border: '2px solid #d11a1a',
-                            color: '#d11a1a',
-                            padding: '0.5rem 1.2rem',
-                            fontWeight: 900,
-                            fontFamily: "'Inter', sans-serif",
-                            fontSize: '1rem',
-                            letterSpacing: '0.15em',
-                            textTransform: 'uppercase',
-                            transform: 'rotate(-8deg)'
-                        }}>
-                            SOLD OUT
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </Link>
-              </div>
-            );
-          })}
-        </div>
-      </section>
-
-      {/* SECTION 3: STRAW-RED AND OBSIDIAN LIQUID FOOTER */}
-      <section className="streetwear-footer-section">
-        {/* Real organic blob shape and intense red ambient glow */}
-        <div className="streetwear-liquid-aurora-glow"></div>
-        
-        <div className="footer-title-overlay">
-          <h2 className="streetwear-massive-logo">REVCLO</h2>
-        </div>
-
-        <Link href="/shop" prefetch={false} className="btn-streetwear-vault">
-          ENTER VAULT
-        </Link>
-
-        {/* Minimal spaced footer links */}
-        <div className="streetwear-flat-links">
-          <span className="link-item">REVCLO</span>
-          <span className="link-item">CONNECT</span>
-          <span className="link-item">LEGAL</span>
-        </div>
-      </section>
-
-    </div>
-  )
+    )
 }
