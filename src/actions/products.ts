@@ -126,58 +126,72 @@ async function uploadBase64ToStorage(base64Str: string, productId: string, index
  * Create a product with full swap-platform fields.
  * Used by the /closet/add listing form.
  */
-export async function createProduct(formData: FormData) {
-    const session = await auth()
-    if (!session?.user?.id) {
-        throw new Error('You must be logged in to list an item.')
+export async function createProduct(formData: FormData): Promise<{ success: boolean; data?: Product; error?: string }> {
+    try {
+        const session = await auth()
+        if (!session?.user?.id) {
+            return { success: false, error: 'You must be logged in to list an item.' }
+        }
+        const userId = session.user.id
+
+        const title = formData.get('title') as string
+        const description = formData.get('description') as string
+        const price = parseFloat(formData.get('price') as string || '0')
+        const images = JSON.parse(formData.get('images') as string || '[]') as string[]
+        const size = (formData.get('size') as string) || 'Free Size'
+        const category = (formData.get('category') as string) || 'Tops'
+        const condition = (formData.get('condition') as string) || 'Good'
+        const brand = (formData.get('brand') as string) || ''
+
+        if (images.length < 4) {
+            return { success: false, error: 'Please upload at least 4 images.' }
+        }
+
+        const productId = crypto.randomUUID()
+        const uploadedUrls: string[] = []
+
+        for (let i = 0; i < images.length; i++) {
+            const url = await uploadBase64ToStorage(images[i], productId, i)
+            uploadedUrls.push(url)
+        }
+
+        const { data, error } = await supabaseAdmin
+            .from('products')
+            .insert({
+                id: productId,
+                title,
+                description,
+                price,
+                images: uploadedUrls,
+                seller_id: userId,
+                status: 'ACTIVE' as ProductStatus,
+                size,
+                category,
+                condition,
+                brand,
+                available_for_exchange: true
+            })
+            .select()
+            .single()
+
+        if (error) {
+            console.error('[createProduct] Database insert error:', error)
+            if (error.message && (error.message.includes('column "size"') || error.message.includes('column "available_for_exchange"'))) {
+                return {
+                    success: false,
+                    error: 'Database schema is not updated. Please execute the SQL migration commands in "src/db/migration.sql" in your Supabase SQL Editor first.'
+                }
+            }
+            return { success: false, error: error.message || 'An unexpected error occurred.' }
+        }
+
+        revalidatePath('/')
+        revalidatePath('/closet')
+        return { success: true, data: data as Product }
+    } catch (err: any) {
+        console.error('[createProduct] Unhandled error:', err)
+        return { success: false, error: err.message || 'Failed to list item.' }
     }
-    const userId = session.user.id
-
-    const title = formData.get('title') as string
-    const description = formData.get('description') as string
-    const price = parseFloat(formData.get('price') as string || '0')
-    const images = JSON.parse(formData.get('images') as string || '[]') as string[]
-    const size = (formData.get('size') as string) || 'Free Size'
-    const category = (formData.get('category') as string) || 'Tops'
-    const condition = (formData.get('condition') as string) || 'Good'
-    const brand = (formData.get('brand') as string) || ''
-
-    if (images.length < 4) {
-        throw new Error('Please upload at least 4 images.')
-    }
-
-    const productId = crypto.randomUUID()
-    const uploadedUrls: string[] = []
-
-    for (let i = 0; i < images.length; i++) {
-        const url = await uploadBase64ToStorage(images[i], productId, i)
-        uploadedUrls.push(url)
-    }
-
-    const { data, error } = await supabaseAdmin
-        .from('products')
-        .insert({
-            id: productId,
-            title,
-            description,
-            price,
-            images: uploadedUrls,
-            seller_id: userId,
-            status: 'ACTIVE' as ProductStatus,
-            size,
-            category,
-            condition,
-            brand,
-            available_for_exchange: true
-        })
-        .select()
-        .single()
-
-    if (error) handleSupabaseError(error)
-
-    revalidatePath('/')
-    revalidatePath('/closet')
-    return data as Product
 }
 
 /**

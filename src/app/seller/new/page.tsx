@@ -61,8 +61,13 @@ export default function NewProductPage() {
         }
 
         try {
-            await createProduct(formData)
-            router.push('/seller')
+            const result = await createProduct(formData)
+            if (result.success) {
+                router.push('/seller')
+            } else {
+                alert(result.error || 'Failed to list item.')
+                setLoading(false)
+            }
         } catch (err: any) {
             console.error(err)
             alert(err.message || 'Failed to list item.')

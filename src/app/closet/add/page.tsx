@@ -129,11 +129,13 @@ export default function AddClosetItemPage() {
             formData.set('condition', condition)
             formData.set('brand', brand)
 
-            const newProduct = await createProduct(formData)
+            const result = await createProduct(formData)
 
-            if (newProduct?.id) {
-                setSuccessMsg(`Listed: "${newProduct.title}" — now available for exchange!`)
+            if (result.success && result.data) {
+                setSuccessMsg(`Listed: "${result.data.title}" — now available for exchange!`)
                 setTimeout(() => router.push('/closet'), 1500)
+            } else {
+                setFormError(result.error || 'Failed to list item. Try again.')
             }
         } catch (err: any) {
             setFormError(err.message || 'Failed to list item. Try again.')
