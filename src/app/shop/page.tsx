@@ -43,28 +43,28 @@ export default async function ShopPage() {
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'flex-end',
-                    borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+                    borderBottom: '1px solid var(--border-sand)',
                     paddingBottom: '2.5rem',
                     marginBottom: '3.5rem'
                 }}>
                     <div>
                         <p style={{
-                            fontFamily: "'Inter', sans-serif",
+                            fontFamily: 'var(--font-sans)',
                             fontSize: '0.68rem',
                             fontWeight: 700,
                             letterSpacing: '0.2em',
                             textTransform: 'uppercase',
-                            color: '#d11a1a',
+                            color: 'var(--accent-orange)',
                             marginBottom: '0.6rem'
                         }}>
                             DISCOVERY_
                         </p>
                         <h1 style={{
-                            fontFamily: "var(--font-sans, 'Syne', sans-serif)",
+                            fontFamily: 'var(--font-heading)',
                             fontSize: 'clamp(2.5rem, 6vw, 4.5rem)',
-                            fontWeight: 900,
+                            fontWeight: 700,
                             textTransform: 'uppercase',
-                            color: '#ffffff',
+                            color: 'var(--text-primary)',
                             lineHeight: 1,
                             margin: 0
                         }}>
@@ -74,11 +74,11 @@ export default async function ShopPage() {
                     <span style={{
                         fontFamily: "var(--font-mono, monospace)",
                         fontSize: '0.78rem',
-                        fontWeight: 700,
-                        color: 'rgba(255, 255, 255, 0.5)',
-                        border: '1px solid rgba(255, 255, 255, 0.15)',
+                        fontWeight: 600,
+                        color: 'var(--text-secondary)',
+                        border: '1px solid var(--border-sand)',
                         padding: '0.4rem 1rem',
-                        borderRadius: '0px',
+                        borderRadius: 'var(--radius-sm)',
                         letterSpacing: '0.05em'
                     }}>
                         {products.length} SELECTED ARTIFACTS

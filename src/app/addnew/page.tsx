@@ -10,12 +10,12 @@ export default function AddNewProductPage() {
   const [password, setPassword] = useState('')
   const [isAuthorized, setIsAuthorized] = useState(false)
   const [passError, setPassError] = useState('')
-  
+
   // Product Form State
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [price, setPrice] = useState('')
-  
+
   // Slot 1 (Editorial Shot)
   const [imagePreview1, setImagePreview1] = useState<string | null>(null)
   const [imageBase641, setImageBase641] = useState<string | null>(null)
@@ -207,22 +207,22 @@ export default function AddNewProductPage() {
   }
 
   // ----------------------------------------------------
-  // SCREEN 1: Stark Brutalist Password Security Lockbox
+  // SCREEN 1: Password Security Lockbox
   // ----------------------------------------------------
   if (!isAuthorized) {
     return (
       <div style={{
         minHeight: '100vh',
-        backgroundColor: '#000000',
-        color: '#ffffff',
+        backgroundColor: 'var(--bg-cream)',
+        color: 'var(--text-primary)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         padding: '2rem 1.5rem',
         position: 'relative',
-        fontFamily: "'Inter', sans-serif"
+        fontFamily: 'var(--font-sans)'
       }}>
-        {/* Signal-red neon gradient bloom */}
+        {/* Soft warm gradient bloom */}
         <div style={{
           position: 'absolute',
           top: '50%',
@@ -230,7 +230,7 @@ export default function AddNewProductPage() {
           transform: 'translate(-50%, -50%)',
           width: '380px',
           height: '380px',
-          background: 'radial-gradient(circle, rgba(209, 26, 26, 0.12) 0%, transparent 70%)',
+          background: 'radial-gradient(circle, rgba(196, 114, 74, 0.12) 0%, transparent 70%)',
           filter: 'blur(40px)',
           zIndex: 1,
           pointerEvents: 'none'
@@ -239,22 +239,22 @@ export default function AddNewProductPage() {
         <div style={{
           width: '100%',
           maxWidth: '440px',
-          background: '#040404',
-          border: '1px solid rgba(255, 255, 255, 0.06)',
-          borderRadius: '0px',
+          background: 'var(--bg-white)',
+          border: '1px solid var(--border-sand)',
+          borderRadius: 'var(--radius-md)',
           padding: '3rem 2.2rem',
-          boxShadow: '0 30px 90px rgba(0, 0, 0, 0.95)',
+          boxShadow: 'var(--shadow-md)',
           position: 'relative',
           zIndex: 10,
           textAlign: 'center'
         }}>
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.5rem' }}>
             <div style={{
-              background: 'rgba(209, 26, 26, 0.08)',
-              border: '1px solid rgba(209, 26, 26, 0.25)',
+              background: 'rgba(196, 114, 74, 0.1)',
+              border: '1px solid rgba(196, 114, 74, 0.3)',
               padding: '1rem',
-              borderRadius: '0px',
-              color: '#d11a1a',
+              borderRadius: 'var(--radius-sm)',
+              color: 'var(--accent-orange)',
               display: 'inline-flex'
             }}>
               <Lock size={26} />
@@ -262,16 +262,16 @@ export default function AddNewProductPage() {
           </div>
 
           <h2 style={{
-            fontFamily: "var(--font-sans, 'Syne', sans-serif)",
+            fontFamily: 'var(--font-heading)',
             fontSize: '1.25rem',
-            fontWeight: 900,
+            fontWeight: 700,
             textTransform: 'uppercase',
             letterSpacing: '0.05em',
             margin: '0 0 0.6rem 0'
           }}>LOCKBOX SECURED_</h2>
           <p style={{
             fontSize: '0.72rem',
-            color: 'rgba(255, 255, 255, 0.45)',
+            color: 'var(--text-secondary)',
             lineHeight: 1.6,
             maxWidth: '280px',
             margin: '0 auto 2.2rem'
@@ -291,23 +291,23 @@ export default function AddNewProductPage() {
                 }}
                 placeholder="••••••"
                 style={{
-                  background: '#0a0a0a',
-                  border: passError ? '1px solid #d11a1a' : '1px solid rgba(255,255,255,0.08)',
-                  color: '#ffffff',
+                  background: 'var(--bg-white)',
+                  border: passError ? '1px solid var(--accent-orange)' : '1px solid var(--border-sand)',
+                  color: 'var(--text-primary)',
                   padding: '1rem 1.2rem',
                   fontSize: '1.1rem',
                   letterSpacing: '0.3em',
                   textAlign: 'center',
-                  fontFamily: "var(--font-mono, monospace)",
+                  fontFamily: 'var(--font-mono)',
                   width: '100%',
-                  borderRadius: '0px'
+                  borderRadius: 'var(--radius-sm)'
                 }}
               />
               {passError && (
                 <span style={{
                   fontSize: '0.58rem',
-                  color: '#d11a1a',
-                  fontFamily: "var(--font-mono, monospace)",
+                  color: 'var(--accent-orange)',
+                  fontFamily: 'var(--font-mono)',
                   marginTop: '0.3rem',
                   display: 'block'
                 }}>{passError}</span>
@@ -317,21 +317,21 @@ export default function AddNewProductPage() {
             <button
               type="submit"
               style={{
-                background: '#d11a1a',
-                color: '#ffffff',
+                background: 'var(--text-primary)',
+                color: 'var(--text-light)',
                 border: 'none',
                 padding: '1rem',
                 fontSize: '0.75rem',
-                fontWeight: 900,
+                fontWeight: 700,
                 letterSpacing: '0.12em',
                 textTransform: 'uppercase',
                 cursor: 'pointer',
-                borderRadius: '0px',
+                borderRadius: 'var(--radius-sm)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: '0.5rem',
-                boxShadow: '0 6px 20px rgba(209, 26, 26, 0.3)'
+                boxShadow: 'var(--shadow-subtle)'
               }}
             >
               <span>ACCESS STATIONS</span>
@@ -344,18 +344,18 @@ export default function AddNewProductPage() {
   }
 
   // ----------------------------------------------------
-  // SCREEN 2: Premium Stark Brutalist Creation Dashboard
+  // SCREEN 2: Editorial Creation Dashboard
   // ----------------------------------------------------
   return (
     <div style={{
       minHeight: '100vh',
-      backgroundColor: '#000000',
-      color: '#ffffff',
+      backgroundColor: 'var(--bg-cream)',
+      color: 'var(--text-primary)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
       padding: '6rem 1.5rem',
-      fontFamily: "'Inter', sans-serif",
+      fontFamily: 'var(--font-sans)',
       position: 'relative'
     }}>
       <div style={{
@@ -364,7 +364,7 @@ export default function AddNewProductPage() {
         right: '-5%',
         width: '450px',
         height: '450px',
-        background: 'radial-gradient(circle, rgba(209, 26, 26, 0.08) 0%, transparent 70%)',
+        background: 'radial-gradient(circle, rgba(196, 114, 74, 0.12) 0%, transparent 70%)',
         filter: 'blur(50px)',
         zIndex: 1,
         pointerEvents: 'none'
@@ -373,17 +373,17 @@ export default function AddNewProductPage() {
       <div style={{
         width: '100%',
         maxWidth: '680px',
-        background: '#040404',
-        border: '1px solid rgba(255, 255, 255, 0.06)',
-        borderRadius: '0px',
+        background: 'var(--bg-white)',
+        border: '1px solid var(--border-sand)',
+        borderRadius: 'var(--radius-md)',
         padding: '4rem 3.5rem',
-        boxShadow: '0 40px 100px rgba(0, 0, 0, 0.95)',
+        boxShadow: 'var(--shadow-md)',
         position: 'relative',
         zIndex: 10
       }}>
-        {/* Stark Editorial Header */}
+        {/* Editorial Header */}
         <div style={{
-          borderBottom: '1px solid rgba(255,255,255,0.06)',
+          borderBottom: '1px solid var(--border-sand)',
           paddingBottom: '2rem',
           marginBottom: '2.5rem',
           display: 'flex',
@@ -393,53 +393,55 @@ export default function AddNewProductPage() {
           gap: '1.5rem'
         }}>
           <div>
-            <p style={{ fontSize: '0.62rem', fontWeight: 900, color: '#d11a1a', letterSpacing: '0.2em', textTransform: 'uppercase', marginBottom: '0.5rem' }}>REVCLO ADMINISTRATION_</p>
+            <p style={{ fontSize: '0.62rem', fontWeight: 700, color: 'var(--accent-orange)', letterSpacing: '0.2em', textTransform: 'uppercase', marginBottom: '0.5rem' }}>REVCLO ADMINISTRATION_</p>
             <h1 style={{
-              fontFamily: "var(--font-sans, 'Syne', sans-serif)",
+              fontFamily: 'var(--font-heading)',
               fontSize: '2.2rem',
-              fontWeight: 900,
+              fontWeight: 700,
               textTransform: 'uppercase',
               margin: 0,
               lineHeight: 1.05
             }}>DROP CREATOR</h1>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', border: '1px solid rgba(255,255,255,0.08)', padding: '0.45rem 1rem' }}>
-            <ShieldCheck size={14} style={{ color: '#d11a1a' }} />
-            <span style={{ fontSize: '0.58rem', fontFamily: "var(--font-mono, monospace)", fontWeight: 700, color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase' }}>LOCKBOX SECURED ✅</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', border: '1px solid var(--border-sand)', borderRadius: 'var(--radius-sm)', padding: '0.45rem 1rem' }}>
+            <ShieldCheck size={14} style={{ color: 'var(--accent-orange)' }} />
+            <span style={{ fontSize: '0.58rem', fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>LOCKBOX SECURED ✅</span>
           </div>
         </div>
 
         {/* Feedback Banners */}
         {successMsg && (
           <div style={{
-            background: 'rgba(34, 197, 94, 0.08)',
-            border: '1px solid rgba(34, 197, 94, 0.25)',
+            background: 'rgba(143, 175, 138, 0.15)',
+            border: '1px solid var(--accent-teal)',
+            borderRadius: 'var(--radius-sm)',
             padding: '1.1rem 1.4rem',
             marginBottom: '2.2rem',
             display: 'flex',
             alignItems: 'center',
             gap: '0.75rem',
-            color: '#22c55e',
-            fontFamily: "var(--font-mono, monospace)",
+            color: 'var(--text-primary)',
+            fontFamily: 'var(--font-mono)',
             fontSize: '0.68rem',
             textTransform: 'uppercase'
           }}>
-            <Check size={16} />
+            <Check size={16} style={{ color: 'var(--accent-teal)' }} />
             <span>{successMsg}</span>
           </div>
         )}
 
         {formError && (
           <div style={{
-            background: 'rgba(209, 26, 26, 0.08)',
-            border: '1px solid rgba(209, 26, 26, 0.25)',
+            background: 'rgba(196, 114, 74, 0.1)',
+            border: '1px solid rgba(196, 114, 74, 0.35)',
+            borderRadius: 'var(--radius-sm)',
             padding: '1.1rem 1.4rem',
             marginBottom: '2.2rem',
             display: 'flex',
             alignItems: 'center',
             gap: '0.75rem',
-            color: '#d11a1a',
-            fontFamily: "var(--font-mono, monospace)",
+            color: 'var(--accent-orange)',
+            fontFamily: 'var(--font-mono)',
             fontSize: '0.68rem',
             textTransform: 'uppercase'
           }}>
@@ -451,7 +453,7 @@ export default function AddNewProductPage() {
         <form onSubmit={handleSubmitProduct} style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
           {/* Title */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-            <label style={{ fontSize: '0.58rem', fontWeight: 900, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+            <label style={{ fontSize: '0.58rem', fontWeight: 700, color: 'var(--text-secondary)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
               GARMENT TITLE_
             </label>
             <input
@@ -461,20 +463,20 @@ export default function AddNewProductPage() {
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g. REVCLO TECHNICAL BLANK"
               style={{
-                background: '#0a0a0a',
-                border: '1px solid rgba(255,255,255,0.08)',
-                color: '#ffffff',
+                background: '#fff',
+                border: '1px solid var(--border-sand)',
+                color: 'var(--text-primary)',
                 padding: '1rem 1.2rem',
                 fontSize: '0.85rem',
                 fontWeight: 600,
-                borderRadius: '0px'
+                borderRadius: 'var(--radius-sm)'
               }}
             />
           </div>
 
           {/* Price */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-            <label style={{ fontSize: '0.58rem', fontWeight: 900, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+            <label style={{ fontSize: '0.58rem', fontWeight: 700, color: 'var(--text-secondary)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
               RETAIL VALUE (₹ INR)_
             </label>
             <input
@@ -484,24 +486,24 @@ export default function AddNewProductPage() {
               onChange={(e) => setPrice(e.target.value.replace(/[^0-9.]/g, ''))}
               placeholder="e.g. 5.00"
               style={{
-                background: '#0a0a0a',
-                border: '1px solid rgba(255,255,255,0.08)',
-                color: '#ffffff',
+                background: '#fff',
+                border: '1px solid var(--border-sand)',
+                color: 'var(--text-primary)',
                 padding: '1rem 1.2rem',
                 fontSize: '0.85rem',
                 fontWeight: 600,
-                fontFamily: "var(--font-mono, monospace)",
-                borderRadius: '0px'
+                fontFamily: 'var(--font-mono)',
+                borderRadius: 'var(--radius-sm)'
               }}
             />
-            <span style={{ fontSize: '0.52rem', color: 'rgba(255,255,255,0.3)', fontFamily: "var(--font-mono, monospace)" }}>
+            <span style={{ fontSize: '0.52rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
               Values under ₹1.00 will trigger simulated gateways during payment handshakes.
             </span>
           </div>
 
           {/* Description */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-            <label style={{ fontSize: '0.58rem', fontWeight: 900, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+            <label style={{ fontSize: '0.58rem', fontWeight: 700, color: 'var(--text-secondary)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
               PRODUCT DETAILS & VIBE_
             </label>
             <textarea
@@ -511,21 +513,21 @@ export default function AddNewProductPage() {
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Detail the materials, fit, size variables, and structural proportions..."
               style={{
-                background: '#0a0a0a',
-                border: '1px solid rgba(255,255,255,0.08)',
-                color: '#ffffff',
+                background: '#fff',
+                border: '1px solid var(--border-sand)',
+                color: 'var(--text-primary)',
                 padding: '1.1rem 1.4rem',
                 fontSize: '0.85rem',
                 lineHeight: '1.6',
-                borderRadius: '0px',
+                borderRadius: 'var(--radius-sm)',
                 resize: 'vertical'
               }}
             />
           </div>
 
           {/* Dual Image Visual Selection Grid */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '2rem' }}>
-            <label style={{ fontSize: '0.58rem', fontWeight: 900, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem', borderTop: '1px solid var(--border-sand)', paddingTop: '2rem' }}>
+            <label style={{ fontSize: '0.58rem', fontWeight: 700, color: 'var(--text-secondary)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
               GARMENT IMAGE FILE UPLOADS (MAX 2 PHOTOS)_
             </label>
 
@@ -537,7 +539,7 @@ export default function AddNewProductPage() {
             }}>
               {/* Slot 1: Editorial Shot */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                <span style={{ fontSize: '0.55rem', fontWeight: 900, color: '#d11a1a', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                <span style={{ fontSize: '0.55rem', fontWeight: 700, color: 'var(--accent-orange)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
                   [REQUIRED] 1. EDITORIAL / MAIN SHOT_
                 </span>
                 <div
@@ -547,8 +549,9 @@ export default function AddNewProductPage() {
                   onDrop={e => handleDrop(e, 1)}
                   onClick={() => fileInputRef1.current?.click()}
                   style={{
-                    border: isDragOver1 ? '2px dashed #d11a1a' : '1px dashed rgba(255, 255, 255, 0.15)',
-                    background: isDragOver1 ? 'rgba(209, 26, 26, 0.05)' : '#070707',
+                    border: isDragOver1 ? '2px dashed var(--accent-orange)' : '1px dashed var(--border-sand)',
+                    background: isDragOver1 ? 'rgba(196, 114, 74, 0.06)' : '#fff',
+                    borderRadius: 'var(--radius-sm)',
                     padding: '1.5rem',
                     textAlign: 'center',
                     cursor: 'pointer',
@@ -565,7 +568,7 @@ export default function AddNewProductPage() {
                       <img
                         src={imagePreview1}
                         alt="Editorial shot preview"
-                        style={{ maxHeight: '200px', maxWidth: '100%', objectFit: 'contain', border: '1px solid rgba(255, 255, 255, 0.08)' }}
+                        style={{ maxHeight: '200px', maxWidth: '100%', objectFit: 'contain', border: '1px solid var(--border-sand)' }}
                       />
                       <button
                         type="button"
@@ -574,17 +577,17 @@ export default function AddNewProductPage() {
                           position: 'absolute',
                           top: '0.5rem',
                           right: '0.5rem',
-                          background: 'rgba(0,0,0,0.85)',
-                          color: '#ffffff',
-                          border: '1px solid rgba(255,255,255,0.2)',
-                          borderRadius: '0px',
+                          background: 'var(--text-primary)',
+                          color: 'var(--text-light)',
+                          border: '1px solid var(--border-black)',
+                          borderRadius: 'var(--radius-sm)',
                           width: '26px',
                           height: '26px',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
                           cursor: 'pointer',
-                          fontWeight: 900,
+                          fontWeight: 700,
                           fontSize: '0.7rem'
                         }}
                       >
@@ -593,9 +596,9 @@ export default function AddNewProductPage() {
                     </div>
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.6rem' }}>
-                      <ImageIcon size={26} style={{ color: 'rgba(255,255,255,0.25)' }} />
+                      <ImageIcon size={26} style={{ color: 'var(--text-muted)' }} />
                       <p style={{ fontWeight: 700, fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>DRAG & DROP SHOT 1_</p>
-                      <p style={{ fontSize: '0.58rem', color: 'rgba(255,255,255,0.4)', fontFamily: "var(--font-mono, monospace)" }}>EDITORIAL ANGLE (CLICK TO BROWSE)</p>
+                      <p style={{ fontSize: '0.58rem', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>EDITORIAL ANGLE (CLICK TO BROWSE)</p>
                     </div>
                   )}
                   <input
@@ -610,7 +613,7 @@ export default function AddNewProductPage() {
 
               {/* Slot 2: Close-up Detail */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                <span style={{ fontSize: '0.55rem', fontWeight: 900, color: 'rgba(255, 255, 255, 0.4)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                <span style={{ fontSize: '0.55rem', fontWeight: 700, color: 'var(--text-secondary)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
                   [OPTIONAL] 2. CLOSE-UP / DETAIL VIEW_
                 </span>
                 <div
@@ -620,8 +623,9 @@ export default function AddNewProductPage() {
                   onDrop={e => handleDrop(e, 2)}
                   onClick={() => fileInputRef2.current?.click()}
                   style={{
-                    border: isDragOver2 ? '2px dashed #d11a1a' : '1px dashed rgba(255, 255, 255, 0.15)',
-                    background: isDragOver2 ? 'rgba(209, 26, 26, 0.05)' : '#070707',
+                    border: isDragOver2 ? '2px dashed var(--accent-orange)' : '1px dashed var(--border-sand)',
+                    background: isDragOver2 ? 'rgba(196, 114, 74, 0.06)' : '#fff',
+                    borderRadius: 'var(--radius-sm)',
                     padding: '1.5rem',
                     textAlign: 'center',
                     cursor: 'pointer',
@@ -638,7 +642,7 @@ export default function AddNewProductPage() {
                       <img
                         src={imagePreview2}
                         alt="Detail view preview"
-                        style={{ maxHeight: '200px', maxWidth: '100%', objectFit: 'contain', border: '1px solid rgba(255, 255, 255, 0.08)' }}
+                        style={{ maxHeight: '200px', maxWidth: '100%', objectFit: 'contain', border: '1px solid var(--border-sand)' }}
                       />
                       <button
                         type="button"
@@ -647,17 +651,17 @@ export default function AddNewProductPage() {
                           position: 'absolute',
                           top: '0.5rem',
                           right: '0.5rem',
-                          background: 'rgba(0,0,0,0.85)',
-                          color: '#ffffff',
-                          border: '1px solid rgba(255,255,255,0.2)',
-                          borderRadius: '0px',
+                          background: 'var(--text-primary)',
+                          color: 'var(--text-light)',
+                          border: '1px solid var(--border-black)',
+                          borderRadius: 'var(--radius-sm)',
                           width: '26px',
                           height: '26px',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
                           cursor: 'pointer',
-                          fontWeight: 900,
+                          fontWeight: 700,
                           fontSize: '0.7rem'
                         }}
                       >
@@ -666,9 +670,9 @@ export default function AddNewProductPage() {
                     </div>
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.6rem' }}>
-                      <ImageIcon size={26} style={{ color: 'rgba(255,255,255,0.25)' }} />
+                      <ImageIcon size={26} style={{ color: 'var(--text-muted)' }} />
                       <p style={{ fontWeight: 700, fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>DRAG & DROP SHOT 2_</p>
-                      <p style={{ fontSize: '0.58rem', color: 'rgba(255,255,255,0.4)', fontFamily: "var(--font-mono, monospace)" }}>CLOSE-UP DETAIL (CLICK TO BROWSE)</p>
+                      <p style={{ fontSize: '0.58rem', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>CLOSE-UP DETAIL (CLICK TO BROWSE)</p>
                     </div>
                   )}
                   <input
@@ -685,12 +689,13 @@ export default function AddNewProductPage() {
 
           {/* Expiry Warning */}
           <div style={{
-            background: 'rgba(255,255,255,0.02)',
-            border: '1px solid rgba(255,255,255,0.05)',
+            background: 'var(--bg-cream)',
+            border: '1px solid var(--border-sand)',
+            borderRadius: 'var(--radius-sm)',
             padding: '1rem 1.2rem',
             fontSize: '0.58rem',
-            fontFamily: "var(--font-mono, monospace)",
-            color: 'rgba(255,255,255,0.45)',
+            fontFamily: 'var(--font-mono)',
+            color: 'var(--text-secondary)',
             lineHeight: 1.5,
             marginTop: '1rem'
           }}>
@@ -703,17 +708,17 @@ export default function AddNewProductPage() {
             type="submit"
             disabled={loading}
             style={{
-              background: '#d11a1a',
-              color: '#ffffff',
+              background: 'var(--text-primary)',
+              color: 'var(--text-light)',
               border: 'none',
               padding: '1.2rem',
               fontSize: '0.85rem',
-              fontWeight: 900,
+              fontWeight: 700,
               letterSpacing: '0.15em',
               textTransform: 'uppercase',
               cursor: loading ? 'not-allowed' : 'pointer',
-              borderRadius: '0px',
-              boxShadow: '0 6px 22px rgba(209, 26, 26, 0.35)',
+              borderRadius: 'var(--radius-sm)',
+              boxShadow: 'var(--shadow-subtle)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -742,9 +747,9 @@ export default function AddNewProductPage() {
             style={{
               background: 'transparent',
               border: 'none',
-              color: 'rgba(255, 255, 255, 0.35)',
+              color: 'var(--text-secondary)',
               fontSize: '0.58rem',
-              fontWeight: 900,
+              fontWeight: 600,
               letterSpacing: '0.12em',
               textTransform: 'uppercase',
               cursor: 'pointer',

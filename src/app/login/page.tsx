@@ -12,17 +12,17 @@ export default async function LoginPage({ searchParams }: PageProps) {
     if (session) redirect('/')
 
     return (
-        <div style={{ 
-            minHeight: '100vh', 
-            display: 'flex', 
-            justifyContent: 'center', 
-            alignItems: 'center', 
+        <div style={{
+            minHeight: '100vh',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
             padding: '2rem',
-            background: '#000000',
+            background: 'var(--bg-cream)',
             position: 'relative',
             overflow: 'hidden'
         }}>
-            {/* Background Streetwear Red Glowing Nebulas */}
+            {/* Background soft warm glows */}
             <div style={{
                 position: 'absolute',
                 top: '-15%',
@@ -31,7 +31,7 @@ export default async function LoginPage({ searchParams }: PageProps) {
                 height: '70vw',
                 maxWidth: '600px',
                 maxHeight: '600px',
-                background: 'radial-gradient(circle, rgba(209,26,26,0.3) 0%, transparent 70%)',
+                background: 'radial-gradient(circle, rgba(196,114,74,0.12) 0%, transparent 70%)',
                 filter: 'blur(80px)',
                 opacity: 0.7,
                 borderRadius: '50%',
@@ -45,69 +45,69 @@ export default async function LoginPage({ searchParams }: PageProps) {
                 height: '70vw',
                 maxWidth: '600px',
                 maxHeight: '600px',
-                background: 'radial-gradient(circle, rgba(209,26,26,0.15) 0%, transparent 70%)',
+                background: 'radial-gradient(circle, rgba(196,114,74,0.12) 0%, transparent 70%)',
                 filter: 'blur(80px)',
                 opacity: 0.5,
                 borderRadius: '50%',
                 zIndex: 0
             }} />
 
-            <div style={{ 
+            <div style={{
                 position: 'relative',
                 zIndex: 1,
-                padding: 'clamp(2.5rem, 5vw, 4.5rem)', 
-                textAlign: 'center', 
-                maxWidth: '460px', 
+                padding: 'clamp(2.5rem, 5vw, 4.5rem)',
+                textAlign: 'center',
+                maxWidth: '460px',
                 width: '100%',
-                background: '#030303',
-                border: '1px solid rgba(255,255,255,0.08)',
-                boxShadow: '0 30px 60px rgba(0,0,0,0.8)',
+                background: 'var(--bg-white)',
+                border: '1px solid var(--border-sand)',
+                boxShadow: 'var(--shadow-md)',
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
-                borderRadius: '0px'
+                borderRadius: 'var(--radius-md)'
             }}>
                 <div style={{
                     width: '64px',
                     height: '64px',
-                    borderRadius: '0px', // Sharp brutalist
-                    background: '#d11a1a',
+                    borderRadius: 'var(--radius-sm)',
+                    background: 'var(--accent-orange)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     marginBottom: '2.5rem',
-                    color: '#ffffff',
-                    boxShadow: '0 10px 25px rgba(209, 26, 26, 0.4)'
+                    color: 'var(--text-light)',
+                    boxShadow: 'var(--shadow-subtle)'
                 }}>
-                    {/* Red stylized logo box */}
-                    <span style={{ fontFamily: "var(--font-sans, 'Syne', sans-serif)", fontWeight: 900, fontSize: '2rem', letterSpacing: '-0.05em' }}>R</span>
+                    {/* Stylized logo box */}
+                    <span style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: '2rem', letterSpacing: '-0.05em' }}>R</span>
                 </div>
-                
+
                 <p style={{
-                    fontFamily: "'Inter', sans-serif",
+                    fontFamily: 'var(--font-sans)',
                     fontSize: '0.62rem',
-                    fontWeight: 900,
-                    color: '#d11a1a',
+                    fontWeight: 700,
+                    color: 'var(--accent-orange)',
                     letterSpacing: '0.2em',
                     textTransform: 'uppercase',
                     marginBottom: '1rem'
                 }}>SECURE AUTHENTICATION_</p>
-                
-                <h1 style={{ 
-                    fontFamily: "var(--font-sans, 'Syne', sans-serif)",
-                    fontWeight: 800,
-                    fontSize: 'clamp(2rem, 6vw, 2.8rem)', 
-                    lineHeight: 1.05, 
+
+                <h1 style={{
+                    fontFamily: 'var(--font-heading)',
+                    fontWeight: 700,
+                    fontSize: 'clamp(2rem, 6vw, 2.8rem)',
+                    lineHeight: 1.05,
                     marginBottom: '1.5rem',
-                    color: '#ffffff',
+                    color: 'var(--text-primary)',
                     textTransform: 'uppercase'
                 }}>
                     WELCOME BACK_
                 </h1>
-                
-                <p style={{ 
-                    color: 'rgba(255, 255, 255, 0.4)', 
-                    fontFamily: "'Inter', sans-serif",
+
+                <p style={{
+                    color: 'var(--text-secondary)',
+                    fontFamily: 'var(--font-sans)',
                     fontSize: '0.88rem',
                     lineHeight: 1.7,
                     marginBottom: searchParams?.error ? '2rem' : '3.5rem',
@@ -120,30 +120,31 @@ export default async function LoginPage({ searchParams }: PageProps) {
                 {searchParams?.error && (
                     <div style={{
                         width: '100%',
-                        background: 'rgba(209, 26, 26, 0.08)',
-                        border: '1px solid #d11a1a',
+                        background: 'rgba(196, 114, 74, 0.08)',
+                        border: '1px solid var(--accent-orange)',
+                        borderRadius: 'var(--radius-sm)',
                         padding: '1.2rem',
                         marginBottom: '2.5rem',
                         textAlign: 'left',
                     }}>
                         <p style={{
-                            color: '#d11a1a',
+                            color: 'var(--accent-orange)',
                             fontSize: '0.72rem',
-                            fontWeight: 900,
+                            fontWeight: 700,
                             letterSpacing: '0.08em',
                             textTransform: 'uppercase',
                             marginBottom: '0.4rem',
-                            fontFamily: "'Inter', sans-serif"
+                            fontFamily: 'var(--font-sans)'
                         }}>
                             AUTHENTICATION ERROR_
                         </p>
                         <p style={{
-                            color: 'rgba(255, 255, 255, 0.75)',
+                            color: 'var(--text-secondary)',
                             fontSize: '0.8rem',
                             lineHeight: 1.5,
                             fontWeight: 500,
                             margin: 0,
-                            fontFamily: "'Inter', sans-serif"
+                            fontFamily: 'var(--font-sans)'
                         }}>
                             An error occurred during authentication. Please try again with a valid Google account.
                         </p>
@@ -151,21 +152,21 @@ export default async function LoginPage({ searchParams }: PageProps) {
                 )}
 
                 <form action={loginWithGoogle} style={{ width: '100%' }}>
-                    <button type="submit" className="hover-opacity-85" style={{ 
-                        width: '100%', 
-                        display: 'flex', 
-                        justifyContent: 'center', 
-                        alignItems: 'center', 
+                    <button type="submit" className="hover-opacity-85" style={{
+                        width: '100%',
+                        display: 'flex',
+                        justifyContent: 'center',
+                        alignItems: 'center',
                         gap: '1rem',
                         padding: '1.2rem 1.5rem',
                         fontSize: '0.8rem',
-                        fontWeight: 900,
-                        fontFamily: "'Inter', sans-serif",
-                        background: '#ffffff',
-                        color: '#000000',
+                        fontWeight: 600,
+                        fontFamily: 'var(--font-sans)',
+                        background: 'var(--text-primary)',
+                        color: 'var(--text-light)',
                         border: 'none',
                         cursor: 'pointer',
-                        borderRadius: '0px', // Sharp streetwear
+                        borderRadius: 'var(--radius-sm)',
                         letterSpacing: '0.1em',
                         textTransform: 'uppercase',
                         transition: 'all 0.3s ease'
@@ -181,9 +182,9 @@ export default async function LoginPage({ searchParams }: PageProps) {
                     </button>
                 </form>
 
-                <p style={{ marginTop: '2.5rem', fontSize: '0.7rem', color: 'rgba(255,255,255,0.3)', fontFamily: "'Inter', sans-serif", lineHeight: 1.5 }}>
+                <p style={{ marginTop: '2.5rem', fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'var(--font-sans)', lineHeight: 1.5 }}>
                     By continuing, you verify your agreement to Revclo's <br/>
-                    <a href="#" style={{ color: '#ffffff', fontWeight: 700, textDecoration: 'none' }}>Terms of Service</a> & <a href="#" style={{ color: '#ffffff', fontWeight: 700, textDecoration: 'none' }}>Privacy Policy</a>.
+                    <a href="#" style={{ color: 'var(--text-primary)', fontWeight: 700, textDecoration: 'none' }}>Terms of Service</a> & <a href="#" style={{ color: 'var(--text-primary)', fontWeight: 700, textDecoration: 'none' }}>Privacy Policy</a>.
                 </p>
             </div>
         </div>

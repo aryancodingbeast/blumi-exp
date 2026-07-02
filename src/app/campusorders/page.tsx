@@ -51,7 +51,7 @@ export default function CampusOrdersPage() {
     }
 
     // Filter orders based on search query (name or phone)
-    const filteredOrders = orders.filter(order => 
+    const filteredOrders = orders.filter(order =>
         (order.name && order.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
         (order.phone && order.phone.includes(searchQuery)) ||
         (order.orderId && order.orderId.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -68,12 +68,12 @@ export default function CampusOrdersPage() {
                 justifyContent: 'center',
                 alignItems: 'center',
                 padding: '2rem',
-                background: '#020202',
+                background: 'var(--bg-cream)',
                 position: 'relative',
                 overflow: 'hidden',
-                fontFamily: "'Inter', sans-serif"
+                fontFamily: 'var(--font-sans)'
             }}>
-                {/* Red radiant background nebula */}
+                {/* Soft warm background glow */}
                 <div style={{
                     position: 'absolute',
                     top: '50%',
@@ -83,7 +83,7 @@ export default function CampusOrdersPage() {
                     height: '70vw',
                     maxWidth: '500px',
                     maxHeight: '500px',
-                    background: 'radial-gradient(circle, rgba(209,26,26,0.1) 0%, transparent 75%)',
+                    background: 'radial-gradient(circle, rgba(196,114,74,0.12) 0%, transparent 75%)',
                     filter: 'blur(70px)',
                     zIndex: 0,
                     borderRadius: '50%'
@@ -95,41 +95,43 @@ export default function CampusOrdersPage() {
                     padding: '3rem 2.5rem',
                     maxWidth: '460px',
                     width: '100%',
-                    background: '#040404',
-                    border: '1px solid rgba(255,255,255,0.06)',
+                    background: 'var(--bg-white)',
+                    border: '1px solid var(--border-sand)',
+                    borderRadius: 'var(--radius-md)',
                     textAlign: 'center',
-                    boxShadow: '0 30px 70px rgba(0,0,0,0.95)'
+                    boxShadow: 'var(--shadow-md)'
                 }}>
                     <div style={{
                         width: '56px',
                         height: '56px',
-                        background: '#d11a1a',
+                        background: 'var(--accent-orange)',
+                        borderRadius: 'var(--radius-sm)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         margin: '0 auto 2rem',
-                        color: '#ffffff',
-                        boxShadow: '0 8px 20px rgba(209, 26, 26, 0.3)'
+                        color: 'var(--text-light)',
+                        boxShadow: 'var(--shadow-subtle)'
                     }}>
                         <Lock size={24} />
                     </div>
 
                     <p style={{
                         fontSize: '0.62rem',
-                        fontWeight: 900,
-                        color: '#d11a1a',
+                        fontWeight: 700,
+                        color: 'var(--accent-orange)',
                         letterSpacing: '0.22em',
                         textTransform: 'uppercase',
                         marginBottom: '0.8rem'
                     }}>RESTRICTED ADMIN ARCHIVE_</p>
 
                     <h1 style={{
-                        fontFamily: "var(--font-sans, 'Syne', sans-serif)",
-                        fontWeight: 900,
+                        fontFamily: 'var(--font-heading)',
+                        fontWeight: 700,
                         fontSize: '1.8rem',
                         lineHeight: 1.1,
                         marginBottom: '1.2rem',
-                        color: '#ffffff',
+                        color: 'var(--text-primary)',
                         textTransform: 'uppercase',
                         letterSpacing: '0.02em'
                     }}>
@@ -137,7 +139,7 @@ export default function CampusOrdersPage() {
                     </h1>
 
                     <p style={{
-                        color: 'rgba(255, 255, 255, 0.45)',
+                        color: 'var(--text-secondary)',
                         fontSize: '0.8rem',
                         lineHeight: 1.6,
                         marginBottom: '2.5rem',
@@ -155,15 +157,16 @@ export default function CampusOrdersPage() {
                                 onChange={e => { setPassword(e.target.value); setError('') }}
                                 placeholder="ENTER VAULT ACCESS CODE"
                                 style={{
-                                    background: '#0a0a0a',
-                                    border: error ? '1px solid #d11a1a' : '1px solid rgba(255,255,255,0.08)',
-                                    color: '#ffffff',
+                                    background: '#fff',
+                                    border: error ? '1px solid var(--accent-orange)' : '1px solid var(--border-sand)',
+                                    color: 'var(--text-primary)',
                                     padding: '1.1rem 1.2rem',
                                     fontSize: '0.9rem',
                                     fontWeight: 700,
-                                    fontFamily: 'var(--font-mono, monospace)',
+                                    fontFamily: 'var(--font-mono)',
                                     textAlign: 'center',
                                     letterSpacing: '0.3em',
+                                    borderRadius: 'var(--radius-sm)',
                                     transition: 'all 0.3s ease'
                                 }}
                             />
@@ -174,12 +177,13 @@ export default function CampusOrdersPage() {
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: '0.5rem',
-                                color: '#d11a1a',
+                                color: 'var(--accent-orange)',
                                 fontSize: '0.72rem',
-                                fontWeight: 800,
+                                fontWeight: 700,
                                 justifyContent: 'center',
-                                border: '1px solid rgba(209, 26, 26, 0.15)',
-                                background: 'rgba(209, 26, 26, 0.05)',
+                                border: '1px solid rgba(196, 114, 74, 0.35)',
+                                background: 'rgba(196, 114, 74, 0.08)',
+                                borderRadius: 'var(--radius-sm)',
                                 padding: '0.75rem 1rem'
                             }}>
                                 <ShieldAlert size={14} style={{ flexShrink: 0 }} />
@@ -192,12 +196,12 @@ export default function CampusOrdersPage() {
                             disabled={loading || !password}
                             style={{
                                 width: '100%',
-                                background: '#ffffff',
-                                color: '#000000',
+                                background: 'var(--text-primary)',
+                                color: 'var(--text-light)',
                                 border: 'none',
                                 padding: '1.1rem',
                                 fontSize: '0.78rem',
-                                fontWeight: 900,
+                                fontWeight: 700,
                                 letterSpacing: '0.12em',
                                 textTransform: 'uppercase',
                                 cursor: (loading || !password) ? 'not-allowed' : 'pointer',
@@ -205,11 +209,12 @@ export default function CampusOrdersPage() {
                                 alignItems: 'center',
                                 justifyContent: 'center',
                                 gap: '0.6rem',
+                                borderRadius: 'var(--radius-sm)',
                                 transition: 'all 0.3s ease',
                                 opacity: !password ? 0.55 : 1
                             }}
-                            onMouseEnter={e => { if (password && !loading) e.currentTarget.style.background = '#d11a1a'; e.currentTarget.style.color = '#ffffff' }}
-                            onMouseLeave={e => { if (password && !loading) e.currentTarget.style.background = '#ffffff'; e.currentTarget.style.color = '#000000' }}
+                            onMouseEnter={e => { if (password && !loading) e.currentTarget.style.background = 'var(--accent-orange)'; e.currentTarget.style.color = 'var(--text-light)' }}
+                            onMouseLeave={e => { if (password && !loading) e.currentTarget.style.background = 'var(--text-primary)'; e.currentTarget.style.color = 'var(--text-light)' }}
                         >
                             {loading ? (
                                 <>
@@ -232,16 +237,16 @@ export default function CampusOrdersPage() {
     return (
         <div style={{
             minHeight: '100vh',
-            background: '#020202',
-            color: '#ffffff',
+            background: 'var(--bg-cream)',
+            color: 'var(--text-primary)',
             padding: '8rem 2rem 4rem',
-            fontFamily: "'Inter', sans-serif"
+            fontFamily: 'var(--font-sans)'
         }}>
             <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
-                
+
                 {/* Header */}
                 <div style={{
-                    borderBottom: '1px solid rgba(255,255,255,0.06)',
+                    borderBottom: '1px solid var(--border-sand)',
                     paddingBottom: '2.5rem',
                     marginBottom: '3rem',
                     display: 'flex',
@@ -253,39 +258,40 @@ export default function CampusOrdersPage() {
                     <div>
                         <p style={{
                             fontSize: '0.64rem',
-                            fontWeight: 900,
-                            color: '#d11a1a',
+                            fontWeight: 700,
+                            color: 'var(--accent-orange)',
                             letterSpacing: '0.25em',
                             textTransform: 'uppercase',
                             marginBottom: '0.6rem'
                         }}>SECURED SYSTEM HUB_</p>
                         <h1 style={{
-                            fontFamily: "var(--font-sans, 'Syne', sans-serif)",
+                            fontFamily: 'var(--font-heading)',
                             fontSize: 'clamp(2rem, 5vw, 3rem)',
-                            fontWeight: 900,
+                            fontWeight: 700,
                             textTransform: 'uppercase',
                             lineHeight: 1,
                             margin: 0,
                             letterSpacing: '0.01em'
                         }}>CAMPUS ORDERS LEDGER</h1>
                     </div>
-                    
+
                     <button
                         onClick={() => setIsAuthenticated(false)}
                         style={{
-                            background: 'transparent',
-                            border: '1px solid rgba(255,255,255,0.15)',
-                            color: 'rgba(255,255,255,0.6)',
+                            background: 'var(--bg-white)',
+                            border: '1px solid var(--border-black)',
+                            color: 'var(--text-primary)',
                             padding: '0.7rem 1.4rem',
                             fontSize: '0.68rem',
-                            fontWeight: 800,
+                            fontWeight: 700,
                             cursor: 'pointer',
                             textTransform: 'uppercase',
                             letterSpacing: '0.08em',
+                            borderRadius: 'var(--radius-sm)',
                             transition: 'all 0.2s ease'
                         }}
-                        onMouseEnter={e => { e.currentTarget.style.borderColor = '#d11a1a'; e.currentTarget.style.color = '#d11a1a' }}
-                        onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)'; e.currentTarget.style.color = 'rgba(255,255,255,0.6)' }}
+                        onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent-orange)'; e.currentTarget.style.color = 'var(--accent-orange)' }}
+                        onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-black)'; e.currentTarget.style.color = 'var(--text-primary)' }}
                     >
                         LOCK VAULT
                     </button>
@@ -299,34 +305,40 @@ export default function CampusOrdersPage() {
                     marginBottom: '3rem'
                 }}>
                     <div style={{
-                        background: '#040404',
-                        border: '1px solid rgba(255, 255, 255, 0.04)',
+                        background: 'var(--bg-white)',
+                        border: '1px solid var(--border-sand)',
+                        borderRadius: 'var(--radius-md)',
+                        boxShadow: 'var(--shadow-subtle)',
                         padding: '2rem 1.8rem'
                     }}>
-                        <p style={{ fontSize: '0.58rem', fontWeight: 900, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '0.6rem' }}>TOTAL CAMPUS ORDERS_</p>
-                        <p style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: '2.5rem', fontWeight: 700, color: '#ffffff', margin: 0, lineHeight: 1 }}>{filteredOrders.length}</p>
+                        <p style={{ fontSize: '0.58rem', fontWeight: 700, color: 'var(--text-secondary)', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '0.6rem' }}>TOTAL CAMPUS ORDERS_</p>
+                        <p style={{ fontFamily: 'var(--font-mono)', fontSize: '2.5rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0, lineHeight: 1 }}>{filteredOrders.length}</p>
                     </div>
                     <div style={{
-                        background: '#040404',
-                        border: '1px solid rgba(255, 255, 255, 0.04)',
+                        background: 'var(--bg-white)',
+                        border: '1px solid var(--border-sand)',
+                        borderRadius: 'var(--radius-md)',
+                        boxShadow: 'var(--shadow-subtle)',
                         padding: '2rem 1.8rem'
                     }}>
-                        <p style={{ fontSize: '0.58rem', fontWeight: 900, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '0.6rem' }}>ACCUMULATED CAMPUS VOLUME_</p>
-                        <p style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: '2.5rem', fontWeight: 700, color: '#d11a1a', margin: 0, lineHeight: 1 }}>₹{totalVolume.toFixed(2)}</p>
+                        <p style={{ fontSize: '0.58rem', fontWeight: 700, color: 'var(--text-secondary)', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '0.6rem' }}>ACCUMULATED CAMPUS VOLUME_</p>
+                        <p style={{ fontFamily: 'var(--font-mono)', fontSize: '2.5rem', fontWeight: 700, color: 'var(--accent-orange)', margin: 0, lineHeight: 1 }}>₹{totalVolume.toFixed(2)}</p>
                     </div>
                 </div>
 
                 {/* Search / Filter Utility */}
                 <div style={{
-                    background: '#040404',
-                    border: '1px solid rgba(255, 255, 255, 0.04)',
+                    background: 'var(--bg-white)',
+                    border: '1px solid var(--border-sand)',
+                    borderRadius: 'var(--radius-md)',
+                    boxShadow: 'var(--shadow-subtle)',
                     padding: '1.5rem 1.8rem',
                     marginBottom: '2rem',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '1rem'
                 }}>
-                    <Search size={18} style={{ color: 'rgba(255, 255, 255, 0.3)' }} />
+                    <Search size={18} style={{ color: 'var(--text-muted)' }} />
                     <input
                         type="text"
                         value={searchQuery}
@@ -336,8 +348,8 @@ export default function CampusOrdersPage() {
                             background: 'transparent',
                             border: 'none',
                             outline: 'none',
-                            color: '#ffffff',
-                            fontFamily: "'Inter', sans-serif",
+                            color: 'var(--text-primary)',
+                            fontFamily: 'var(--font-sans)',
                             fontSize: '0.85rem',
                             fontWeight: 600,
                             letterSpacing: '0.02em',
@@ -351,9 +363,9 @@ export default function CampusOrdersPage() {
                             style={{
                                 background: 'transparent',
                                 border: 'none',
-                                color: '#d11a1a',
+                                color: 'var(--accent-orange)',
                                 fontSize: '0.65rem',
-                                fontWeight: 800,
+                                fontWeight: 700,
                                 cursor: 'pointer',
                                 textTransform: 'uppercase'
                             }}
@@ -365,15 +377,17 @@ export default function CampusOrdersPage() {
 
                 {/* Orders List Table */}
                 <div style={{
-                    background: '#040404',
-                    border: '1px solid rgba(255, 255, 255, 0.04)',
+                    background: 'var(--bg-white)',
+                    border: '1px solid var(--border-sand)',
+                    borderRadius: 'var(--radius-md)',
+                    boxShadow: 'var(--shadow-subtle)',
                     overflowX: 'auto'
                 }}>
                     {filteredOrders.length === 0 ? (
                         <div style={{ padding: '5rem 2rem', textAlign: 'center' }}>
-                            <ShieldAlert size={40} style={{ color: '#d11a1a', marginBottom: '1.5rem' }} />
-                            <h3 style={{ fontFamily: "var(--font-sans, 'Syne', sans-serif)", fontSize: '1.1rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>VAULT ARCHIVE EMPTY_</h3>
-                            <p style={{ fontSize: '0.78rem', color: 'rgba(255, 255, 255, 0.4)', maxWidth: '360px', margin: '0 auto' }}>
+                            <ShieldAlert size={40} style={{ color: 'var(--accent-orange)', marginBottom: '1.5rem' }} />
+                            <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.1rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>VAULT ARCHIVE EMPTY_</h3>
+                            <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', maxWidth: '360px', margin: '0 auto' }}>
                                 No campus order matches found in the ledger. Secure campus orders will register automatically.
                             </p>
                         </div>
@@ -386,11 +400,11 @@ export default function CampusOrdersPage() {
                         }}>
                             <thead>
                                 <tr style={{
-                                    borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-                                    color: 'rgba(255,255,255,0.4)',
-                                    fontFamily: "'Inter', sans-serif",
+                                    borderBottom: '1px solid var(--border-sand)',
+                                    color: 'var(--text-secondary)',
+                                    fontFamily: 'var(--font-sans)',
                                     fontSize: '0.62rem',
-                                    fontWeight: 900,
+                                    fontWeight: 700,
                                     letterSpacing: '0.12em',
                                     textTransform: 'uppercase'
                                 }}>
@@ -404,10 +418,10 @@ export default function CampusOrdersPage() {
                             <tbody>
                                 {filteredOrders.map((order) => (
                                     <tr key={order.id} style={{
-                                        borderBottom: '1px solid rgba(255, 255, 255, 0.03)',
+                                        borderBottom: '1px solid var(--border-sand)',
                                         transition: 'background 0.2s ease'
                                     }}
-                                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.01)'}
+                                    onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-cream)'}
                                     onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                                     >
                                         {/* Buyer Name & Email */}
@@ -416,47 +430,48 @@ export default function CampusOrdersPage() {
                                                 <div style={{
                                                     width: '32px',
                                                     height: '32px',
-                                                    background: 'rgba(255,255,255,0.03)',
-                                                    border: '1px solid rgba(255,255,255,0.05)',
+                                                    background: 'var(--bg-cream)',
+                                                    border: '1px solid var(--border-sand)',
+                                                    borderRadius: 'var(--radius-sm)',
                                                     display: 'flex',
                                                     alignItems: 'center',
                                                     justifyContent: 'center',
-                                                    color: 'rgba(255,255,255,0.6)'
+                                                    color: 'var(--text-secondary)'
                                                 }}>
                                                     <User size={14} />
                                                 </div>
                                                 <div>
-                                                    <p style={{ fontWeight: 800, margin: '0 0 0.2rem 0', color: '#ffffff' }}>{order.name}</p>
-                                                    <p style={{ fontSize: '0.7rem', color: 'rgba(255, 255, 255, 0.35)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                                    <p style={{ fontWeight: 700, margin: '0 0 0.2rem 0', color: 'var(--text-primary)' }}>{order.name}</p>
+                                                    <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                                                         <Mail size={10} /> {order.email}
                                                     </p>
                                                 </div>
                                             </div>
                                         </td>
-                                        
+
                                         {/* Contact Phone */}
                                         <td style={{ padding: '1.5rem 1.8rem' }}>
                                             <span style={{
                                                 fontSize: '0.75rem',
-                                                fontFamily: 'var(--font-mono, monospace)',
+                                                fontFamily: 'var(--font-mono)',
                                                 fontWeight: 700,
-                                                color: '#ffffff',
+                                                color: 'var(--text-primary)',
                                                 display: 'flex',
                                                 alignItems: 'center',
                                                 gap: '0.45rem'
                                             }}>
-                                                <Phone size={11} style={{ color: '#d11a1a' }} />
+                                                <Phone size={11} style={{ color: 'var(--accent-orange)' }} />
                                                 {order.phone}
                                             </span>
                                         </td>
-                                        
+
                                         {/* Order ID */}
                                         <td style={{ padding: '1.5rem 1.8rem' }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                                 <span style={{
-                                                    fontFamily: 'var(--font-mono, monospace)',
+                                                    fontFamily: 'var(--font-mono)',
                                                     fontSize: '0.72rem',
-                                                    color: 'rgba(255,255,255,0.5)',
+                                                    color: 'var(--text-secondary)',
                                                     fontWeight: 600
                                                 }}>
                                                     {order.orderId ? `${order.orderId.substring(0, 12)}...` : 'N/A'}
@@ -467,7 +482,7 @@ export default function CampusOrdersPage() {
                                                         style={{
                                                             background: 'transparent',
                                                             border: 'none',
-                                                            color: copiedId === order.orderId ? '#d11a1a' : 'rgba(255,255,255,0.3)',
+                                                            color: copiedId === order.orderId ? 'var(--accent-teal)' : 'var(--text-muted)',
                                                             cursor: 'pointer',
                                                             padding: '0.2rem',
                                                             display: 'inline-flex',
@@ -480,7 +495,7 @@ export default function CampusOrdersPage() {
                                                 )}
                                             </div>
                                         </td>
-                                        
+
                                         {/* Items */}
                                         <td style={{ padding: '1.5rem 1.8rem' }}>
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
@@ -490,24 +505,25 @@ export default function CampusOrdersPage() {
                                                         return (
                                                             <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                                                                 <span style={{
-                                                                    background: 'rgba(255, 255, 255, 0.03)',
-                                                                    border: '1px solid rgba(255, 255, 255, 0.06)',
-                                                                    color: '#ffffff',
+                                                                    background: 'var(--bg-cream)',
+                                                                    border: '1px solid var(--border-sand)',
+                                                                    borderRadius: 'var(--radius-sm)',
+                                                                    color: 'var(--text-primary)',
                                                                     padding: '0.25rem 0.6rem',
                                                                     fontSize: '0.62rem',
-                                                                    fontWeight: 800,
-                                                                    fontFamily: 'var(--font-mono, monospace)',
+                                                                    fontWeight: 700,
+                                                                    fontFamily: 'var(--font-mono)',
                                                                     textTransform: 'uppercase',
                                                                     letterSpacing: '0.02em',
                                                                     whiteSpace: 'nowrap'
                                                                 }}>
                                                                     {matchedProduct ? matchedProduct.title.toUpperCase() : `ID: ${item.productId.slice(0, 6).toUpperCase()}`}
                                                                 </span>
-                                                                <span style={{ 
-                                                                    fontSize: '0.68rem', 
-                                                                    color: '#d11a1a', 
-                                                                    fontFamily: 'var(--font-mono, monospace)',
-                                                                    fontWeight: 700 
+                                                                <span style={{
+                                                                    fontSize: '0.68rem',
+                                                                    color: 'var(--accent-orange)',
+                                                                    fontFamily: 'var(--font-mono)',
+                                                                    fontWeight: 700
                                                                 }}>
                                                                     ₹{item.price}
                                                                 </span>
@@ -515,18 +531,18 @@ export default function CampusOrdersPage() {
                                                         )
                                                     })
                                                 ) : (
-                                                    <span style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.3)' }}>-</span>
+                                                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>-</span>
                                                 )}
                                             </div>
                                         </td>
-                                        
+
                                         {/* Price / Volume */}
                                         <td style={{ padding: '1.5rem 1.8rem', textAlign: 'right' }}>
                                             <span style={{
-                                                fontFamily: 'var(--font-mono, monospace)',
-                                                fontWeight: 800,
+                                                fontFamily: 'var(--font-mono)',
+                                                fontWeight: 700,
                                                 fontSize: '0.88rem',
-                                                color: '#d11a1a'
+                                                color: 'var(--accent-orange)'
                                             }}>
                                                 ₹{order.totalAmount ? order.totalAmount.toFixed(2) : '0.00'}
                                             </span>
