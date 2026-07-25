@@ -1,4 +1,4 @@
--- REVCLO Swap Platform — Database Migration
+-- BLUMI Swap Platform — Database Migration
 -- Run this in Supabase SQL Editor
 
 -- 1. Extend products table with new columns for the swap platform

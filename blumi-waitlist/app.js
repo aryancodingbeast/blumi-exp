@@ -44,8 +44,8 @@ const headerStatusBadge = document.getElementById('header-status-badge');
 
 // --- APP STATE ---
 const IS_WAITLIST_CLOSED = true;
-let isRegistered = localStorage.getItem('revclo_registered') === 'true';
-let waitlistNum = parseInt(localStorage.getItem('revclo_number') || '0');
+let isRegistered = localStorage.getItem('blumi_registered') === 'true';
+let waitlistNum = parseInt(localStorage.getItem('blumi_number') || '0');
 let activeView = 'landing';
 
 // --- CUSTOM INTERACTIVE CURSOR (Failsafe wrapped) ---
@@ -332,10 +332,10 @@ async function updateWaitlistStats() {
       }
     } catch (e) {
       console.warn("Could not query Supabase waitlist stats count, falling back to LocalStorage.");
-      count = parseInt(localStorage.getItem('revclo_local_registrants_count') || '0');
+      count = parseInt(localStorage.getItem('blumi_local_registrants_count') || '0');
     }
   } else {
-    count = parseInt(localStorage.getItem('revclo_local_registrants_count') || '0');
+    count = parseInt(localStorage.getItem('blumi_local_registrants_count') || '0');
   }
   statGirls.innerText = `${count} 💖`;
 }
@@ -359,7 +359,7 @@ btnGoCountdown.addEventListener('click', () => switchView('countdown'));
 
 // Share positioning with friends
 btnShareFriends.addEventListener('click', () => {
-  const shareText = `I just clocked into the REVCLO waitlist at IGDTUW! I'm User #${waitlistNum}. Lock your early-access spot now at waitlist.revclo.in! <3`;
+  const shareText = `I just clocked into the BLUMI waitlist at IGDTUW! I'm User #${waitlistNum}. Lock your early-access spot now at waitlist.blumi.in! <3`;
   navigator.clipboard.writeText(shareText).then(() => {
     const originalText = btnShareFriends.innerHTML;
     btnShareFriends.innerHTML = "Link Copied! ✅";
@@ -425,18 +425,18 @@ waitlistForm.addEventListener('submit', async (e) => {
       
     } catch (err) {
       console.warn("Supabase integration failed, falling back to LocalStorage demo mode.", err);
-      const localRegistrantsCount = parseInt(localStorage.getItem('revclo_local_registrants_count') || '0');
+      const localRegistrantsCount = parseInt(localStorage.getItem('blumi_local_registrants_count') || '0');
       newPosition = localRegistrantsCount + 1;
-      localStorage.setItem('revclo_local_registrants_count', String(localRegistrantsCount));
+      localStorage.setItem('blumi_local_registrants_count', String(localRegistrantsCount));
     }
   } else {
-    const localRegistrantsCount = parseInt(localStorage.getItem('revclo_local_registrants_count') || '0');
+    const localRegistrantsCount = parseInt(localStorage.getItem('blumi_local_registrants_count') || '0');
     newPosition = localRegistrantsCount + 1;
-    localStorage.setItem('revclo_local_registrants_count', String(localRegistrantsCount));
+    localStorage.setItem('blumi_local_registrants_count', String(localRegistrantsCount));
   }
   
-  localStorage.setItem('revclo_registered', 'true');
-  localStorage.setItem('revclo_number', String(newPosition));
+  localStorage.setItem('blumi_registered', 'true');
+  localStorage.setItem('blumi_number', String(newPosition));
   
   isRegistered = true;
   waitlistNum = newPosition;
@@ -457,8 +457,8 @@ btnResetDemo.addEventListener('click', (e) => {
   e.preventDefault();
   const resetConfirm = confirm("Do you want to reset your local registration status for demo testing? <3");
   if (resetConfirm) {
-    localStorage.removeItem('revclo_registered');
-    localStorage.removeItem('revclo_number');
+    localStorage.removeItem('blumi_registered');
+    localStorage.removeItem('blumi_number');
     isRegistered = false;
     waitlistNum = 0;
     

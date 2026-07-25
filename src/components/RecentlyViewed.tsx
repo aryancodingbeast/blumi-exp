@@ -10,7 +10,7 @@ export default function RecentlyViewed({ currentProductId }: { currentProductId:
     useEffect(() => {
         // Fetch product data for IDs in localStorage
         const fetchRecent = async () => {
-            const saved = localStorage.getItem('revclo-recently-viewed')
+            const saved = localStorage.getItem('blumi-recently-viewed')
             if (!saved) return
             
             const ids = JSON.parse(saved) as string[]
@@ -24,10 +24,10 @@ export default function RecentlyViewed({ currentProductId }: { currentProductId:
         }
         
         // Add current to history
-        const saved = localStorage.getItem('revclo-recently-viewed')
+        const saved = localStorage.getItem('blumi-recently-viewed')
         const ids = saved ? (JSON.parse(saved) as string[]) : []
         const newIds = [currentProductId, ...ids.filter(id => id !== currentProductId)].slice(0, 10)
-        localStorage.setItem('revclo-recently-viewed', JSON.stringify(newIds))
+        localStorage.setItem('blumi-recently-viewed', JSON.stringify(newIds))
         
         fetchRecent()
     }, [currentProductId])

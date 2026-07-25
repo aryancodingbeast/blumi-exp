@@ -1,12 +1,14 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { Product, Match } from '@/types'
 import SwipeCard from './SwipeCard'
 import MatchPopup from './MatchPopup'
 import { recordSwipe } from '@/actions/swipes'
 import { Heart, Layers, ShoppingBag } from 'lucide-react'
 import Link from 'next/link'
+import gsap from 'gsap'
+import { useGSAP } from '@gsap/react'
 
 interface SwipeDeckProps {
     initialProducts: Product[]
@@ -19,6 +21,80 @@ export default function SwipeDeck({ initialProducts, offeredProduct }: SwipeDeck
     const [showMatch, setShowMatch] = useState(false)
     const [stats, setStats] = useState({ liked: 0, passed: 0 })
     const [isProcessing, setIsProcessing] = useState(false)
+
+    // Motion layer refs — one container ref shared by whichever root renders
+    const containerRef = useRef<HTMLDivElement>(null)
+    const firstRenderRef = useRef(true)
+
+    /* ------------------------------------------------------------------ */
+    /* Mount choreography — deck header + keyboard hints stagger reveal    */
+    /* ------------------------------------------------------------------ */
+    useGSAP(() => {
+        const root = containerRef.current
+        if (!root) return
+        const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+        if (reduceMotion) return
+
+        const q = gsap.utils.selector(root)
+        const headerChildren = q('.swipe-deck-header > *')
+        const hints = q('.swipe-deck-hints')
+        if (headerChildren.length === 0 && hints.length === 0) return
+
+        gsap.from([...headerChildren, ...hints], {
+            y: 20,
+            opacity: 0,
+            duration: 0.7,
+            stagger: 0.08,
+            ease: 'power3.out'
+        })
+    }, { scope: containerRef })
+
+    /* ------------------------------------------------------------------ */
+    /* Under-card settle — the promoted card eases from its stack pose     */
+    /* (CSS :nth-child(2) pose: scale .96 / y 12 / rotate 1deg) to rest.   */
+    /* Empty-state stagger reveal when the deck runs out.                  */
+    /* ------------------------------------------------------------------ */
+    useGSAP(() => {
+        const root = containerRef.current
+        if (!root) return
+        const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+        if (reduceMotion) return
+
+        const q = gsap.utils.selector(root)
+
+        if (cards.length === 0) {
+            // Empty state — stagger the exhausted-deck children into place
+            const emptyChildren = q('.swipe-empty-inner > *')
+            if (emptyChildren.length > 0) {
+                gsap.from(emptyChildren, {
+                    y: 24,
+                    opacity: 0,
+                    duration: 0.75,
+                    stagger: 0.09,
+                    ease: 'power3.out'
+                })
+            }
+            return
+        }
+
+        if (firstRenderRef.current) {
+            firstRenderRef.current = false
+            return
+        }
+
+        // A card just left the deck — settle the new top card into position
+        const topCard = q('.swipe-deck-stack .swipe-card')[0]
+        if (topCard) {
+            gsap.from(topCard, {
+                scale: 0.96,
+                y: 12,
+                rotation: 1,
+                duration: 0.5,
+                ease: 'power3.out',
+                overwrite: 'auto'
+            })
+        }
+    }, { scope: containerRef, dependencies: [cards.length] })
 
     const handleSwipe = useCallback(async (direction: 'LEFT' | 'RIGHT') => {
         if (isProcessing || cards.length === 0) return
@@ -62,7 +138,7 @@ export default function SwipeDeck({ initialProducts, offeredProduct }: SwipeDeck
     // Empty state — all cards swiped
     if (cards.length === 0) {
         return (
-            <div className="swipe-empty-state">
+            <div ref={containerRef} className="swipe-empty-state">
                 <div className="swipe-empty-inner">
                     <div className="swipe-empty-icon">
                         <Layers size={48} />
@@ -112,7 +188,7 @@ export default function SwipeDeck({ initialProducts, offeredProduct }: SwipeDeck
     }
 
     return (
-        <div className="swipe-deck-container">
+        <div ref={containerRef} className="swipe-deck-container">
             {/* Deck Header */}
             <div className="swipe-deck-header">
                 <div className="swipe-deck-offering">

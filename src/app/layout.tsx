@@ -37,8 +37,8 @@ export default async function RootLayout({
                     <footer className="site-footer comic-footer">
                         <div className="footer-inner">
                             <div>
-                                <p className="footer-brand">REVCLO</p>
-                                <p className="label-caps" style={{ opacity: 0.6 }}>(c) 2026 REVCLO COLLECTIVE</p>
+                                <p className="footer-brand">BLUMI</p>
+                                <p className="label-caps" style={{ opacity: 0.6 }}>(c) 2026 BLUMI COLLECTIVE</p>
                             </div>
 
                             <div className="footer-columns">
@@ -46,7 +46,7 @@ export default async function RootLayout({
                                     <p className="label-caps footer-title">Connect</p>
                                     <div className="footer-links">
                                         <a 
-                                            href="https://instagram.com/revclo.igdtu" 
+                                            href="https://instagram.com/blumi.igdtu" 
                                             target="_blank" 
                                             rel="noopener noreferrer" 
                                             className="label-caps footer-link" 

@@ -5,7 +5,7 @@
 
 ## Goal
 
-Transform REVCLO e-commerce UI to comic book / graphic novel aesthetic. Bold, stylized, high-contrast design inspired by fashion illustration sheets with thick outlines and vibrant colors.
+Transform BLUMI e-commerce UI to comic book / graphic novel aesthetic. Bold, stylized, high-contrast design inspired by fashion illustration sheets with thick outlines and vibrant colors.
 
 ## Design Language
 

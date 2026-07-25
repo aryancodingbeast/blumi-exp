@@ -24,12 +24,12 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     const [isCartOpen, setIsCartOpen] = useState(false)
 
     useEffect(() => {
-        const savedCart = localStorage.getItem('revclo-cart')
+        const savedCart = localStorage.getItem('blumi-cart')
         if (savedCart) setCart(JSON.parse(savedCart))
     }, [])
 
     useEffect(() => {
-        localStorage.setItem('revclo-cart', JSON.stringify(cart))
+        localStorage.setItem('blumi-cart', JSON.stringify(cart))
     }, [cart])
 
     const addToCart = (product: Product) => {

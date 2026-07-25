@@ -1,62 +1,45 @@
 import { auth } from '@/lib/auth'
 import Link from 'next/link'
-import SellerHubForm from './SellerHubForm'
+import { getSellerProducts } from '@/actions/products'
+import { dashboardStore } from '@/lib/dashboardStore'
+import type { Product } from '@/types'
+import SourcingDashboard from './SourcingDashboard'
+
+export const dynamic = 'force-dynamic'
 
 export default async function SellerHubPage() {
     const session = await auth()
 
     if (!session?.user?.id) {
         return (
-            <div style={{ 
-                padding: '10rem 2rem', 
-                textAlign: 'center', 
-                background: '#020202', 
-                minHeight: '100vh',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center'
-            }}>
-                <div style={{
-                    maxWidth: '500px',
-                    width: '100%',
-                    padding: '3rem 2rem',
-                    background: '#040404',
-                    border: '1px solid rgba(255, 255, 255, 0.06)',
-                    boxShadow: '0 30px 80px rgba(0,0,0,0.9)'
-                }}>
-                    <h1 style={{ 
-                        fontFamily: "var(--font-sans, 'Syne', sans-serif)", 
-                        fontWeight: 900, 
-                        fontSize: '2rem', 
-                        marginBottom: '1rem', 
-                        color: 'white',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.05em'
-                    }}>
-                        Authentication Required_
-                    </h1>
-                    <p style={{ 
-                        marginBottom: '2.5rem', 
-                        opacity: 0.5, 
-                        color: 'white',
-                        fontSize: '0.88rem',
-                        lineHeight: 1.6
-                    }}>
-                        You must be logged in with your student account to apply for a seller account in the Blumi network.
-                    </p>
-                    <Link href="/login" className="btn-pill btn-pill-filled" style={{ display: 'inline-flex', padding: '1.1rem 3rem' }}>
-                        LOGIN_
+            <div className="sourcing-auth-gate">
+                <div className="sourcing-auth-card">
+                    <h1>Sign in required</h1>
+                    <p>Log in to view your sourcing dashboard and listed items.</p>
+                    <Link href="/login?callbackUrl=/seller" className="sourcing-list-btn">
+                        Log in
                     </Link>
                 </div>
             </div>
         )
     }
 
+    let products: Product[] = []
+    try {
+        products = await getSellerProducts(session.user.id)
+    } catch (e) {
+        console.error('[SellerHubPage] Failed to load user listings:', e)
+    }
+
+    const demands = dashboardStore.getDemands()
+    const revenue = dashboardStore.getRevenue()
+
     return (
-        <SellerHubForm 
-            initialName={session.user.name || ''} 
-            initialEmail={session.user.email || ''} 
+        <SourcingDashboard
+            products={products}
+            demands={demands}
+            revenue={revenue}
+            userName={session.user.name || 'Seller'}
         />
     )
 }

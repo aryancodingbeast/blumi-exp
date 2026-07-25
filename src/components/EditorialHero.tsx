@@ -122,7 +122,7 @@ export default function EditorialHero() {
                             <span>The Next</span>
                             <span>Vibe</span>
                             <span className="is-word">Is</span>
-                            <span>Revclo</span>
+                            <span>Blumi</span>
                         </h1>
                     </div>
                     <div className="reveal-item hero-note" data-scroll-depth="-32">
@@ -171,7 +171,7 @@ export default function EditorialHero() {
 
                 <div className="hero-block hero-marquee">
                     <div className="hero-marquee-track">
-                        THE NEXT VIBE IS REVCLO * SHOP THE COLLECTION * STAY FRESH * SUSTAINABLE LUXURY * GLOBAL CURATION *
+                        THE NEXT VIBE IS BLUMI * SHOP THE COLLECTION * STAY FRESH * SUSTAINABLE LUXURY * GLOBAL CURATION *
                     </div>
                 </div>
             </div>

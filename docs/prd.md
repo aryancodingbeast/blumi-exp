@@ -1,12 +1,12 @@
-# PRD — REVCLO
+# PRD — BLUMI
 
 ## 1. Overview
 
 ### Product Summary
-REVCLO is an interactive clothes-swapping platform styled as an editorial fashion magazine. It helps young fashion lovers list their wardrobe, browse items in a Tinder-style swiping interface, select which of their own clothes they wish to offer, and instantly swap clothes when there is a mutual match. If preferred, users can also buy liked items directly using a checkout cart flow.
+BLUMI is an interactive clothes-swapping platform styled as an editorial fashion magazine. It helps young fashion lovers list their wardrobe, browse items in a Tinder-style swiping interface, select which of their own clothes they wish to offer, and instantly swap clothes when there is a mutual match. If preferred, users can also buy liked items directly using a checkout cart flow.
 
 ### Objective
-This PRD outlines the technical specifications for the REVCLO MVP. The core objectives are:
+This PRD outlines the technical specifications for the BLUMI MVP. The core objectives are:
 * Provide a single-click secure Google authentication mechanism.
 * Enable users to easily manage their closet (adding items with title, brand, size, description, category, and minimum 4 images).
 * Implement the interactive Tinder-like swiping deck where users offer an item from their closet to trade for recommended items.
@@ -15,7 +15,7 @@ This PRD outlines the technical specifications for the REVCLO MVP. The core obje
 * List active, pending, and completed matches in a dashboard.
 
 ### Market Differentiation
-Traditional resale platforms like Depop and Vinted require significant listing management, messaging negotiations, lowball offers, and seller fees. REVCLO differentiates by using a **mutual swiping swap engine**. By removing the cash valuation from the initial transaction and replacing it with direct trades, REVCLO creates a frictionless, low-pressure circular wardrobe experience.
+Traditional resale platforms like Depop and Vinted require significant listing management, messaging negotiations, lowball offers, and seller fees. BLUMI differentiates by using a **mutual swiping swap engine**. By removing the cash valuation from the initial transaction and replacing it with direct trades, BLUMI creates a frictionless, low-pressure circular wardrobe experience.
 
 ### Magic Moment
 The magic moment occurs when a user swipes right on an item they want, and is immediately greeted by the "It's a Match!" celebration screen showing their own item side-by-side with the matched item, complete with custom editorial styling, washi-tape decorations, and confetti. The technical system must evaluate matches instantly on swipe submissions to trigger this.
@@ -186,7 +186,7 @@ CREATE TABLE matches (
 ## 4. API Specification
 
 ### API Design Philosophy
-REVCLO utilizes **Next.js Server Actions** for core transactional database operations (liking, listing, matching) to share TypeScript schemas directly. Public integrations (Razorpay Webhooks and AI Valuations) use standard HTTP endpoints.
+BLUMI utilizes **Next.js Server Actions** for core transactional database operations (liking, listing, matching) to share TypeScript schemas directly. Public integrations (Razorpay Webhooks and AI Valuations) use standard HTTP endpoints.
 
 ### Endpoints
 

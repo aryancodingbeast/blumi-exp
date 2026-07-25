@@ -206,7 +206,7 @@ export default async function ProductPage({
                             <div style={{ padding: '1.8rem', background: '#030303', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
                                 <Shield size={18} style={{ color: '#d11a1a', marginBottom: '1rem' }} />
                                 <p style={{ fontWeight: 800, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#ffffff', marginBottom: '0.4rem' }}>Verified Source</p>
-                                <p style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.4)', lineHeight: 1.5 }}>100% authenticity guaranteed by REVCLO.</p>
+                                <p style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.4)', lineHeight: 1.5 }}>100% authenticity guaranteed by BLUMI.</p>
                             </div>
                         </div>
                     </div>

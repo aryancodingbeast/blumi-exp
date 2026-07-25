@@ -38,12 +38,12 @@ export default function ShopController({
         setMounted(true)
         
         // Check if waitlist verified state was saved in localStorage previously
-        const localWaitlistVerified = localStorage.getItem('revclo_waitlist_verified') === 'true'
+        const localWaitlistVerified = localStorage.getItem('blumi_waitlist_verified') === 'true'
         if (localWaitlistVerified) {
             setHasWaitlistAccess(true)
         }
 
-        const localClosetOpened = localStorage.getItem('revclo_closet_opened') === 'true'
+        const localClosetOpened = localStorage.getItem('blumi_closet_opened') === 'true'
         if (localClosetOpened) {
             setClosetOpened(true)
         }
@@ -58,7 +58,7 @@ export default function ShopController({
                 setIsLive(false)
                 // Clear old locker open states if the drop is scheduled in the future
                 if (typeof window !== 'undefined') {
-                    localStorage.removeItem('revclo_closet_opened')
+                    localStorage.removeItem('blumi_closet_opened')
                 }
                 setClosetOpened(false)
             }
@@ -101,14 +101,14 @@ export default function ShopController({
     const handleVerified = (email: string) => {
         setHasWaitlistAccess(true)
         if (typeof window !== 'undefined') {
-            localStorage.setItem('revclo_waitlist_verified', 'true')
+            localStorage.setItem('blumi_waitlist_verified', 'true')
         }
     }
 
     const handleOpenComplete = () => {
         setClosetOpened(true)
         if (typeof window !== 'undefined') {
-            localStorage.setItem('revclo_closet_opened', 'true')
+            localStorage.setItem('blumi_closet_opened', 'true')
         }
     }
 

@@ -17,7 +17,7 @@ const INITIAL_STEPS: ScanStep[] = [
     { id: 5, label: 'Result', status: 'pending' },
 ]
 
-const STORAGE_KEY = 'revclo_scan_history'
+const STORAGE_KEY = 'blumi_scan_history'
 
 export default function ScannerPage() {
     const [stage, setStage] = useState<ScannerStage>('capture')
@@ -180,7 +180,7 @@ export default function ScannerPage() {
                     <div className="scanner-hero-icon">
                         <Scan size={28} />
                     </div>
-                    <h1 className="scanner-hero-title">RevClo Scanner</h1>
+                    <h1 className="scanner-hero-title">Blumi Scanner</h1>
                     <p className="scanner-hero-sub">AI-Powered Resale Valuation for Indian Fashion</p>
                 </div>
             </div>

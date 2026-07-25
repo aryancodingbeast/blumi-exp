@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import gsap from 'gsap'
 import { logout } from '@/actions/auth'
 import { signIn } from 'next-auth/react'
 import { Sparkle, ArrowRight, Lock, Unlock, Mail, Clock, ShoppingBag } from 'lucide-react'
@@ -20,8 +21,8 @@ interface ThreeClosetGateProps {
 const RELEASE_DATE_WAITLIST = new Date('2000-01-01T00:00:00+05:30')
 const RELEASE_DATE_NORMAL = new Date('2000-01-01T00:00:00+05:30')
 
-export default function ThreeClosetGate({ 
-    initialEmail = null, 
+export default function ThreeClosetGate({
+    initialEmail = null,
     initialOnWaitlist = false,
     waitlistName = '',
     waitlistNumber = 0,
@@ -32,12 +33,12 @@ export default function ThreeClosetGate({
     const [waitlistUser, setWaitlistUser] = useState<{ isRegistered: boolean; name?: string; waitlistNumber?: number } | null>(
         initialEmail ? { isRegistered: initialOnWaitlist, name: waitlistName, waitlistNumber: waitlistNumber } : null
     )
-    
+
     // Track dates
     const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 })
     const [isLive, setIsLive] = useState(false)
     const [targetDateLabel, setTargetDateLabel] = useState('')
-    
+
     // Ref-based 3D tilt to eliminate 60fps React re-renders
     const closetRef = useRef<HTMLDivElement>(null)
     const [doorOpen, setDoorOpen] = useState(false)
@@ -45,21 +46,31 @@ export default function ThreeClosetGate({
     const hasWaitlistAccess = waitlistUser?.isRegistered || initialOnWaitlist
     const activeTargetDate = hasWaitlistAccess ? RELEASE_DATE_WAITLIST : RELEASE_DATE_NORMAL
 
-    // Direct DOM high-performance 3D tilt effect on mouse move (runs at 60fps smoothly with 0 React re-renders)
+    // GSAP quickTo spring tilt — same ±20° range, zero React re-renders,
+    // smoothed by GSAP's ticker instead of a CSS transition.
     useEffect(() => {
+        const closet = closetRef.current
+        if (!closet) return
+
+        const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+        if (reduceMotion) return
+
+        const rotYTo = gsap.quickTo(closet, 'rotationY', { duration: 0.8, ease: 'power3.out' })
+        const rotXTo = gsap.quickTo(closet, 'rotationX', { duration: 0.8, ease: 'power3.out' })
+
         const handleMouseMove = (e: MouseEvent) => {
-            if (doorOpen || !closetRef.current) return
+            if (doorOpen) return
             const x = (e.clientX - window.innerWidth / 2) / (window.innerWidth / 2)
             const y = (e.clientY - window.innerHeight / 2) / (window.innerHeight / 2)
-            
-            const tiltX = x * 20
-            const tiltY = -y * 20
-            closetRef.current.style.transform = `rotateY(${tiltX}deg) rotateX(${tiltY}deg)`
+
+            rotYTo(x * 20)
+            rotXTo(-y * 20)
         }
 
         const handleMouseLeave = () => {
-            if (doorOpen || !closetRef.current) return
-            closetRef.current.style.transform = 'rotateY(0deg) rotateX(0deg)'
+            if (doorOpen) return
+            rotYTo(0)
+            rotXTo(0)
         }
 
         window.addEventListener('mousemove', handleMouseMove)
@@ -67,6 +78,7 @@ export default function ThreeClosetGate({
         return () => {
             window.removeEventListener('mousemove', handleMouseMove)
             document.removeEventListener('mouseleave', handleMouseLeave)
+            gsap.killTweensOf(closet)
         }
     }, [doorOpen])
 
@@ -79,10 +91,10 @@ export default function ThreeClosetGate({
             const diff = activeTargetDate.getTime() - now.getTime()
 
             // Format target date display string
-            const options: Intl.DateTimeFormatOptions = { 
-                month: 'short', 
-                day: 'numeric', 
-                hour: '2-digit', 
+            const options: Intl.DateTimeFormatOptions = {
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
                 minute: '2-digit',
                 hour12: true
             }
@@ -94,7 +106,7 @@ export default function ThreeClosetGate({
             setDoorOpen(false)
         }
         checkTime()
-        return () => {}
+        return () => { }
     }, [activeTargetDate, onReleaseLive, onOpenComplete])
 
     // Auto check if initialEmail exists
@@ -165,7 +177,7 @@ export default function ThreeClosetGate({
                 cursor: 'grab'
             }}>
                 {/* 3D Closet box */}
-                <div 
+                <div
                     ref={closetRef}
                     style={{
                         width: '240px',
@@ -173,7 +185,6 @@ export default function ThreeClosetGate({
                         position: 'relative',
                         transformStyle: 'preserve-3d',
                         transform: 'rotateY(0deg) rotateX(0deg)',
-                        transition: 'transform 0.5s cubic-bezier(0.16, 1, 0.3, 1)',
                         transformOrigin: 'center center'
                     }}
                 >
@@ -203,7 +214,7 @@ export default function ThreeClosetGate({
                             textAlign: 'center',
                             lineHeight: 1.4
                         }}>
-                            DROP<br/>FINISHED
+                            DROP<br />FINISHED
                         </div>
                         <span style={{
                             fontFamily: "'JetBrains Mono', monospace",
@@ -265,7 +276,7 @@ export default function ThreeClosetGate({
                     }} />
 
                     {/* LEFT DOOR */}
-                    <div 
+                    <div
                         style={{
                             position: 'absolute',
                             top: 0,
@@ -298,7 +309,7 @@ export default function ThreeClosetGate({
                     </div>
 
                     {/* RIGHT DOOR */}
-                    <div 
+                    <div
                         style={{
                             position: 'absolute',
                             top: 0,
@@ -375,7 +386,7 @@ export default function ThreeClosetGate({
                 }}>
                     🔒 drop terminated / collection locked
                 </span>
-                
+
                 <h1 style={{
                     fontFamily: "var(--font-sans, 'Syne', sans-serif)",
                     fontWeight: 900,
@@ -388,7 +399,7 @@ export default function ThreeClosetGate({
                 }}>
                     THE VAULT IS FINISHED_
                 </h1>
-                
+
                 <p style={{
                     fontFamily: "'Inter', sans-serif",
                     fontSize: '0.82rem',
@@ -511,7 +522,7 @@ export default function ThreeClosetGate({
                                     margin: 0
                                 }}>WAITLIST VERIFICATION PANEL</h4>
                             </div>
-                            
+
                             <p style={{
                                 fontFamily: "'Inter', sans-serif",
                                 fontSize: '0.72rem',
@@ -522,7 +533,7 @@ export default function ThreeClosetGate({
                                 Early access (8:45 PM) is reserved exclusively for campus waitlisted members. Connect your campus student Gmail to verify your drop access.
                             </p>
 
-                            <button 
+                            <button
                                 onClick={() => signIn('google')}
                                 className="hover-opacity-85"
                                 style={{
@@ -565,7 +576,7 @@ export default function ThreeClosetGate({
                                 letterSpacing: '0.08em',
                                 marginBottom: '0.5rem'
                             }}>EARLY ACCESS TICKET SECURED_</h4>
-                            
+
                             <p style={{
                                 fontFamily: "'Inter', sans-serif",
                                 fontSize: '0.72rem',
@@ -615,7 +626,7 @@ export default function ThreeClosetGate({
                                 letterSpacing: '0.08em',
                                 marginBottom: '0.5rem'
                             }}>STANDARD RELEASE TARGET APPLIED_</h4>
-                            
+
                             <p style={{
                                 fontFamily: "'Inter', sans-serif",
                                 fontSize: '0.72rem',

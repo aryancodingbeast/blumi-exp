@@ -1,4 +1,4 @@
-# Vision — REVCLO
+# Vision — BLUMI
 
 > Captured by the Product Planner skill. This file is the source of truth for
 > generating product-vision.md, prd.md, and product-roadmap.md. Edit it directly
@@ -22,8 +22,8 @@
 
 ## Product
 
-- **Name:** REVCLO
-- **One-liner:** REVCLO helps young fashion enthusiasts exchange their clothes instantly through a Tinder-style swiping interface.
+- **Name:** BLUMI
+- **One-liner:** BLUMI helps young fashion enthusiasts exchange their clothes instantly through a Tinder-style swiping interface.
 - **How it works:** Users list their items with at least 4 photos, sizes, and brand details. They browse other users' items in a swiping deck, selecting one of their own closet items to offer. If both users like each other's items, they match instantly. From there, they can confirm the exchange or choose to buy liked items directly.
 - **Key capabilities:**
   - Catalog listing (requiring at least 4 images per item)
@@ -32,7 +32,7 @@
   - Shopping cart & direct purchase checkout flow
   - Matches dashboard & exchange status tracker
 - **Platform:** web
-- **Market differentiation:** Unlike standard resale marketplaces (Vinted, Depop) where users list, chat, negotiate, and pay, REVCLO enables instant clothes-for-clothes matching with zero-negotiation instant swaps.
+- **Market differentiation:** Unlike standard resale marketplaces (Vinted, Depop) where users list, chat, negotiate, and pay, BLUMI enables instant clothes-for-clothes matching with zero-negotiation instant swaps.
 - **Magic moment:** Swiping right on a vintage jacket, getting an instant "It's a Match!" celebration, and seeing that it was swapped for the jeans you listed and forgot about.
 
 ## Audience

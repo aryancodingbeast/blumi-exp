@@ -52,10 +52,10 @@ export default function NewProductPage() {
         setLoading(true)
 
         const formData = new FormData(e.currentTarget)
-        const frontPhoto = scannedPhotos.find(p => p.slot === 'front')?.base64
+        const listingPhotos = scannedPhotos.map(photo => photo.base64).filter(Boolean)
 
-        if (frontPhoto) {
-            formData.append('images', JSON.stringify([frontPhoto]))
+        if (listingPhotos.length > 0) {
+            formData.append('images', JSON.stringify(listingPhotos))
         } else {
             formData.append('images', JSON.stringify(['https://images.unsplash.com/photo-1551488831-00ddcb6c6bd3']))
         }
@@ -63,6 +63,7 @@ export default function NewProductPage() {
         try {
             const result = await createProduct(formData)
             if (result.success) {
+                router.refresh()
                 router.push('/seller')
             } else {
                 alert(result.error || 'Failed to list item.')
@@ -120,6 +121,13 @@ export default function NewProductPage() {
     const suggestedPrice = scanResult ? scanResult.market.resaleAvg || Math.round((scanResult.valuation.resaleLow + scanResult.valuation.resaleHigh) / 2) : 0
     const suggestedCondition = scanResult?.vision.condition.replace(/_/g, ' ') || ''
     const suggestedDesc = scanResult ? `Brand: ${scanResult.vision.brand}\nType: ${scanResult.vision.garmentType}\nColor: ${scanResult.vision.color}\nFabric: ${scanResult.vision.fabric}\n\nCondition: ${suggestedCondition}\n${scanResult.vision.conditionDetails}\n\n${scanResult.valuation.recommendationReason}` : ''
+    const listingCondition = scanResult?.vision.condition === 'new_with_tags'
+        ? 'New with Tags'
+        : scanResult?.vision.condition === 'like_new'
+            ? 'Like New'
+            : scanResult?.vision.condition === 'gently_used'
+                ? 'Good'
+                : 'Fair'
 
     const coverImage = scannedPhotos.find(p => p.slot === 'front')?.base64
 
@@ -144,6 +152,10 @@ export default function NewProductPage() {
                 </div>
 
                 <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: '2rem', alignItems: 'start' }}>
+                    <input type="hidden" name="brand" value={scanResult?.vision.brand || ''} />
+                    <input type="hidden" name="size" value={scanResult?.vision.size || 'Free Size'} />
+                    <input type="hidden" name="category" value={scanResult?.vision.category || 'Tops'} />
+                    <input type="hidden" name="condition" value={listingCondition} />
                     <div style={{ background: 'white', border: '1px solid rgba(0,0,0,0.05)', borderRadius: 'var(--radius-xl)', padding: '2.5rem', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
 
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
@@ -197,7 +209,7 @@ export default function NewProductPage() {
                     </div>
                 </form>
             </div>
-            <div></div>
+
         </div>
 
     )

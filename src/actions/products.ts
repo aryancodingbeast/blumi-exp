@@ -187,6 +187,7 @@ export async function createProduct(formData: FormData): Promise<{ success: bool
 
         revalidatePath('/')
         revalidatePath('/closet')
+        revalidatePath('/seller')
         return { success: true, data: data as Product }
     } catch (err: any) {
         console.error('[createProduct] Unhandled error:', err)

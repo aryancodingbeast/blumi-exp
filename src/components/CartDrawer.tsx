@@ -4,6 +4,7 @@ import { useCart } from '@/components/CartContext'
 import { X, ShoppingBag, Trash2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import gsap from 'gsap'
+import { useGSAP } from '@gsap/react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { isDropExpired } from '@/lib/expiry'
@@ -23,17 +24,46 @@ export default function CartDrawer() {
         return () => clearInterval(interval)
     }, [])
 
-    useEffect(() => {
+    useGSAP(() => {
+        const overlay = overlayRef.current
+        const drawer = drawerRef.current
+        if (!overlay || !drawer) return
+
+        const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
         if (isCartOpen) {
-            gsap.to(overlayRef.current, { opacity: 1, duration: 0.4, pointerEvents: 'auto' })
-            gsap.to(drawerRef.current, { x: 0, duration: 0.6, ease: 'power4.out' })
             document.body.style.overflow = 'hidden'
+            if (reduceMotion) {
+                gsap.set(overlay, { opacity: 1, pointerEvents: 'auto' })
+                gsap.set(drawer, { x: 0 })
+                return
+            }
+            gsap.to(overlay, { opacity: 1, duration: 0.4, pointerEvents: 'auto', overwrite: 'auto' })
+            gsap.to(drawer, { x: 0, duration: 0.6, ease: 'power4.out', overwrite: 'auto' })
+            // Items cascade in as the drawer settles
+            const items = gsap.utils.selector(drawer)('.cart-drawer-item')
+            if (items.length > 0) {
+                gsap.from(items, {
+                    x: 40,
+                    opacity: 0,
+                    duration: 0.6,
+                    stagger: 0.06,
+                    delay: 0.15,
+                    ease: 'power3.out',
+                    overwrite: 'auto'
+                })
+            }
         } else {
-            gsap.to(overlayRef.current, { opacity: 0, duration: 0.4, pointerEvents: 'none' })
-            gsap.to(drawerRef.current, { x: '100%', duration: 0.6, ease: 'power4.in' })
             document.body.style.overflow = 'unset'
+            if (reduceMotion) {
+                gsap.set(overlay, { opacity: 0, pointerEvents: 'none' })
+                gsap.set(drawer, { x: '100%' })
+                return
+            }
+            gsap.to(overlay, { opacity: 0, duration: 0.4, pointerEvents: 'none', overwrite: 'auto' })
+            gsap.to(drawer, { x: '100%', duration: 0.6, ease: 'power4.in', overwrite: 'auto' })
         }
-    }, [isCartOpen])
+    }, { dependencies: [isCartOpen] })
 
     return (
         <>

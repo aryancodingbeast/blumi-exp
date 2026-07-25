@@ -4,6 +4,8 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { Product } from '@/types'
 import Image from 'next/image'
 import { Heart, X, ChevronLeft, ChevronRight } from 'lucide-react'
+import gsap from 'gsap'
+import { useGSAP } from '@gsap/react'
 
 interface SwipeCardProps {
     product: Product
@@ -14,11 +16,28 @@ interface SwipeCardProps {
 export default function SwipeCard({ product, onSwipe, isTop }: SwipeCardProps) {
     const cardRef = useRef<HTMLDivElement>(null)
     const [imageIndex, setImageIndex] = useState(0)
-    const [dragState, setDragState] = useState({ x: 0, y: 0, isDragging: false, startX: 0, startY: 0 })
     const [swipeIndicator, setSwipeIndicator] = useState<'LEFT' | 'RIGHT' | null>(null)
     const [isExiting, setIsExiting] = useState(false)
-    const [exitDirection, setExitDirection] = useState<'LEFT' | 'RIGHT' | null>(null)
     const [imageLoading, setImageLoading] = useState(true)
+
+    // Drag state lives in refs so pointermove never triggers React re-renders.
+    const dragRef = useRef({ isDragging: false, startX: 0, startY: 0, x: 0, y: 0 })
+    const exitingRef = useRef(false)
+    const motionRef = useRef<{
+        xTo: ((value: number) => void) | null
+        yTo: ((value: number) => void) | null
+        rTo: ((value: number) => void) | null
+        reduceMotion: boolean
+    }>({ xTo: null, yTo: null, rTo: null, reduceMotion: false })
+
+    useGSAP(() => {
+        const card = cardRef.current
+        if (!card) return
+        motionRef.current.reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+        return () => {
+            gsap.killTweensOf(card)
+        }
+    }, { scope: cardRef })
 
     useEffect(() => {
         setImageLoading(true)
@@ -56,67 +75,102 @@ export default function SwipeCard({ product, onSwipe, isTop }: SwipeCardProps) {
     }, [isTop, nextImage, prevImage])
 
     const handleSwipeComplete = (direction: 'LEFT' | 'RIGHT') => {
+        if (exitingRef.current) return
+        exitingRef.current = true
         setIsExiting(true)
-        setExitDirection(direction)
         setSwipeIndicator(direction)
-        
-        setTimeout(() => {
-            onSwipe(direction)
-        }, 400)
-    }
 
-    // Touch / Mouse drag handlers
-    const handlePointerDown = (e: React.PointerEvent) => {
-        if (!isTop) return
-        const target = e.target as HTMLElement
-        if (target.closest('.card-image-nav') || target.closest('.card-action-btn')) return
+        const card = cardRef.current
+        if (!card || motionRef.current.reduceMotion) {
+            // Reduced motion / no ref: instant hide, same 400ms handoff as before
+            if (card) gsap.set(card, { opacity: 0 })
+            setTimeout(() => onSwipe(direction), 400)
+            return
+        }
 
-        setDragState({
-            x: 0,
-            y: 0,
-            isDragging: true,
-            startX: e.clientX,
-            startY: e.clientY
+        gsap.killTweensOf(card)
+        gsap.to(card, {
+            x: direction === 'RIGHT' ? 1200 : -1200,
+            y: -100,
+            rotation: direction === 'RIGHT' ? 30 : -30,
+            opacity: 0,
+            duration: 0.4,
+            ease: 'power2.in',
+            onComplete: () => onSwipe(direction)
         })
     }
 
-    const handlePointerMove = (e: React.PointerEvent) => {
-        if (!dragState.isDragging) return
-        const dx = e.clientX - dragState.startX
-        const dy = e.clientY - dragState.startY
-        setDragState(prev => ({ ...prev, x: dx, y: dy }))
+    // Touch / Mouse drag handlers — GSAP quickTo drives the card directly
+    const handlePointerDown = (e: React.PointerEvent) => {
+        if (!isTop || exitingRef.current) return
+        const target = e.target as HTMLElement
+        if (target.closest('.card-image-nav') || target.closest('.card-action-btn')) return
 
-        if (dx > 80) setSwipeIndicator('RIGHT')
-        else if (dx < -80) setSwipeIndicator('LEFT')
-        else setSwipeIndicator(null)
+        const card = cardRef.current
+        if (card && !motionRef.current.reduceMotion) {
+            // Fresh quickTo setters per drag session (survive prior overwrites)
+            motionRef.current.xTo = gsap.quickTo(card, 'x', { duration: 0.25, ease: 'power3.out' })
+            motionRef.current.yTo = gsap.quickTo(card, 'y', { duration: 0.25, ease: 'power3.out' })
+            motionRef.current.rTo = gsap.quickTo(card, 'rotation', { duration: 0.25, ease: 'power3.out' })
+        }
+
+        dragRef.current = { isDragging: true, startX: e.clientX, startY: e.clientY, x: 0, y: 0 }
+    }
+
+    const handlePointerMove = (e: React.PointerEvent) => {
+        const drag = dragRef.current
+        if (!drag.isDragging || exitingRef.current) return
+        const dx = e.clientX - drag.startX
+        const dy = e.clientY - drag.startY
+        drag.x = dx
+        drag.y = dy
+
+        const card = cardRef.current
+        if (card) {
+            if (motionRef.current.reduceMotion) {
+                gsap.set(card, { x: dx, y: dy * 0.3, rotation: dx * 0.08 })
+            } else {
+                motionRef.current.xTo?.(dx)
+                motionRef.current.yTo?.(dy * 0.3)
+                motionRef.current.rTo?.(dx * 0.08)
+            }
+        }
+
+        const indicator: 'LEFT' | 'RIGHT' | null = dx > 80 ? 'RIGHT' : dx < -80 ? 'LEFT' : null
+        setSwipeIndicator(prev => (prev === indicator ? prev : indicator))
     }
 
     const handlePointerUp = () => {
-        if (!dragState.isDragging) return
+        const drag = dragRef.current
+        if (!drag.isDragging || exitingRef.current) return
+        drag.isDragging = false
 
         const threshold = 120
-        if (dragState.x > threshold) {
+        if (drag.x > threshold) {
             handleSwipeComplete('RIGHT')
-        } else if (dragState.x < -threshold) {
+        } else if (drag.x < -threshold) {
             handleSwipeComplete('LEFT')
         } else {
-            setDragState({ x: 0, y: 0, isDragging: false, startX: 0, startY: 0 })
             setSwipeIndicator(null)
+            const card = cardRef.current
+            if (card) {
+                if (motionRef.current.reduceMotion) {
+                    gsap.set(card, { x: 0, y: 0, rotation: 0 })
+                } else {
+                    // Springy elastic snap-back
+                    gsap.to(card, {
+                        x: 0,
+                        y: 0,
+                        rotation: 0,
+                        duration: 0.7,
+                        ease: 'elastic.out(1, 0.5)',
+                        overwrite: true
+                    })
+                }
+            }
         }
-    }
-
-    const rotation = dragState.isDragging ? dragState.x * 0.08 : 0
-    const opacity = isExiting ? 0 : 1
-
-    const getExitTransform = () => {
-        if (isExiting && exitDirection) {
-            const xExit = exitDirection === 'RIGHT' ? 1200 : -1200
-            return `translate(${xExit}px, -100px) rotate(${exitDirection === 'RIGHT' ? 30 : -30}deg)`
-        }
-        if (dragState.isDragging) {
-            return `translate(${dragState.x}px, ${dragState.y * 0.3}px) rotate(${rotation}deg)`
-        }
-        return 'translate(0, 0) rotate(0deg)'
+        drag.x = 0
+        drag.y = 0
     }
 
     const getImageSrc = (img: string) => {
@@ -129,9 +183,6 @@ export default function SwipeCard({ product, onSwipe, isTop }: SwipeCardProps) {
             ref={cardRef}
             className={`swipe-card ${isTop ? 'swipe-card-top' : ''} ${isExiting ? 'swipe-card-exiting' : ''}`}
             style={{
-                transform: getExitTransform(),
-                opacity,
-                transition: dragState.isDragging ? 'none' : 'transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s ease',
                 zIndex: isTop ? 10 : 5,
                 touchAction: 'none',
             }}

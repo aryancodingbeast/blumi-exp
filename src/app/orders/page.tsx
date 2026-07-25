@@ -13,7 +13,7 @@ export default async function OrdersPage() {
         redirect('/login?callbackUrl=/orders')
     }
 
-    const email = session.user.email || 'buyer@revclo.com'
+    const email = session.user.email || 'buyer@blumi.com'
     
     // Resolve profile UUID dynamically by email to prevent non-UUID or Google ID mapping failures
     const { data: profile } = await supabaseAdmin

@@ -393,7 +393,7 @@ export default function AddNewProductPage() {
           gap: '1.5rem'
         }}>
           <div>
-            <p style={{ fontSize: '0.62rem', fontWeight: 700, color: 'var(--accent-orange)', letterSpacing: '0.2em', textTransform: 'uppercase', marginBottom: '0.5rem' }}>REVCLO ADMINISTRATION_</p>
+            <p style={{ fontSize: '0.62rem', fontWeight: 700, color: 'var(--accent-orange)', letterSpacing: '0.2em', textTransform: 'uppercase', marginBottom: '0.5rem' }}>BLUMI ADMINISTRATION_</p>
             <h1 style={{
               fontFamily: 'var(--font-heading)',
               fontSize: '2.2rem',
@@ -461,7 +461,7 @@ export default function AddNewProductPage() {
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g. REVCLO TECHNICAL BLANK"
+              placeholder="e.g. BLUMI TECHNICAL BLANK"
               style={{
                 background: '#fff',
                 border: '1px solid var(--border-sand)',

@@ -58,7 +58,7 @@ export async function syncOrderToShiprocket(
           const cleanedPhone = rawPhone.replace(/\D/g, '').slice(-10)
           const billingPhone = cleanedPhone.length === 10 && /^[6-9]/.test(cleanedPhone) ? cleanedPhone : ''
           
-          const billingCustomerName = shippingDetails.name || 'Revclo Buyer'
+          const billingCustomerName = shippingDetails.name || 'Blumi Buyer'
 
           if (!billingPhone) {
             console.error('[Shiprocket Sync] Invalid phone number, cannot create shipment:', rawPhone)
@@ -82,11 +82,11 @@ export async function syncOrderToShiprocket(
               billing_pincode: parseInt(billingPincode, 10),
               billing_state: billingState,
               billing_country: 'India',
-              billing_email: shippingDetails.email || 'buyer@revclo.com',
+              billing_email: shippingDetails.email || 'buyer@blumi.com',
               billing_phone: billingPhone,
               shipping_is_billing: true,
               order_items: items.map((item, index) => ({
-                name: item.title || `REVCLO GARMENT DROPS #${index + 1}`,
+                name: item.title || `BLUMI GARMENT DROPS #${index + 1}`,
                 sku: `SKU-${item.productId.slice(0, 6).toUpperCase()}`,
                 units: 1,
                 selling_price: item.price,
@@ -312,18 +312,18 @@ export async function getOrderTrackingDetails(orderId: string, email: string) {
     // Simulate progressive milestones:
     let currentStep = 0
     let statusLabel = 'DRIP SECURED'
-    let location = 'REVCLO HUB, DELHI'
+    let location = 'BLUMI HUB, DELHI'
     let dbStatus = 'PLACED'
     
     if (orderAgeHours < 0.5) {
       currentStep = 0
       statusLabel = 'ORDER SECURED'
-      location = 'REVCLO HUB, DELHI'
+      location = 'BLUMI HUB, DELHI'
       dbStatus = 'PLACED'
     } else if (orderAgeHours < 1.5) {
       currentStep = 1
       statusLabel = 'GETTING DRIP READY (MANIFESTED)'
-      location = 'REVCLO HUB, DELHI'
+      location = 'BLUMI HUB, DELHI'
       dbStatus = 'PLACED'
     } else if (orderAgeHours < 3.5) {
       currentStep = 2

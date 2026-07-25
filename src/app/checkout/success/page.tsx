@@ -50,7 +50,7 @@ export default function CheckoutSuccessPage() {
           const state = searchParams.get('state') || ''
           const pinCode = searchParams.get('pinCode') || ''
           const landmark = searchParams.get('landmark') || ''
-          const email = searchParams.get('email') || 'buyer@revclo.com'
+          const email = searchParams.get('email') || 'buyer@blumi.com'
 
           // Sync with Shiprocket shipping engine only if deliveryOption is DOORSTEP (skip for campus pickups)
           if (deliveryOption !== 'CAMPUS') {

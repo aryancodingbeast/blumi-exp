@@ -10,7 +10,7 @@ export default function CustomLoader() {
     const textRef = useRef<HTMLDivElement>(null)
 
     const loadingTexts = [
-        "REVCLO.SYSTEMS_",
+        "BLUMI.SYSTEMS_",
         "ESTABLISHING_VAULT_CONNECTION...",
         "AUTHENTICATING_USER_SESSION...",
         "SECURING_DROP_001_ARTIFACTS_",

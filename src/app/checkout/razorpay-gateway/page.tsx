@@ -275,7 +275,7 @@ export default function RazorpayGatewayPage() {
                 fontWeight: 900,
                 letterSpacing: '0.05em',
                 color: '#ffffff'
-              }}>REVCLO</span>
+              }}>BLUMI</span>
               <span style={{
                 fontFamily: "'Inter', sans-serif",
                 fontSize: '0.62rem',
@@ -301,7 +301,7 @@ export default function RazorpayGatewayPage() {
         <div style={{ background: '#080808', border: '1px solid rgba(255, 255, 255, 0.04)', padding: '1.5rem 1.8rem', marginBottom: '2rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.8rem' }}>
             <span style={{ fontSize: '0.62rem', fontWeight: 800, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>CUSTOMER_</span>
-            <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#ffffff' }}>{name || 'REVCLO BUYER'}</span>
+            <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#ffffff' }}>{name || 'BLUMI BUYER'}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.2rem', borderBottom: '1px solid rgba(255,255,255,0.04)', paddingBottom: '0.8rem' }}>
             <span style={{ fontSize: '0.62rem', fontWeight: 800, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>EMAIL_</span>

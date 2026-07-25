@@ -1,5 +1,5 @@
 const TOKEN = 'nfp_mPAXzjoWAKHkuLGMm44MvsiYoWwpaxCRa14b';
-const KEEP_NAMES = ['revclo', 'revclo-waitlist'];
+const KEEP_NAMES = ['blumi', 'blumi-waitlist'];
 const KEEP_IDS = ['4d567f41-0323-4d18-bb99-f1439c7f4d61', '62b42916-5dc3-4b9d-bda3-a4e08d825ffc'];
 
 async function sleep(ms) {
@@ -43,7 +43,7 @@ async function run() {
   });
 
   if (toKeep.length === 0) {
-    console.error('ERROR: revclo and revclo-waitlist were not identified! Aborting to prevent accidental deletion.');
+    console.error('ERROR: blumi and blumi-waitlist were not identified! Aborting to prevent accidental deletion.');
     return;
   }
 

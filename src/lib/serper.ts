@@ -90,3 +90,77 @@ export async function searchLens(imageUrl: string): Promise<PriceSource[]> {
         return []
     }
 }
+
+export interface SearchProductResult {
+    title: string
+    price: number
+    url: string
+    platform: string
+    image: string
+}
+
+export async function searchProducts(query: string): Promise<SearchProductResult[]> {
+    const apiKey = process.env.SERPER_API_KEY
+    if (!apiKey) {
+        console.warn('SERPER_API_KEY is not configured.')
+        return []
+    }
+
+    try {
+        const response = await fetch('https://google.serper.dev/shopping', {
+            method: 'POST',
+            headers: {
+                'X-API-KEY': apiKey,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                q: `${query}`,
+                gl: 'in',
+                hl: 'en'
+            }),
+        })
+
+        if (!response.ok) {
+            console.error('Serper shopping response failed')
+            return []
+        }
+
+        const data = await response.json()
+        const results: SearchProductResult[] = []
+
+        for (const item of (data.shopping || [])) {
+            const title = item.title || 'Product'
+            const link = item.link || ''
+            const source = item.source || 'Online Store'
+            const imageUrl = item.imageUrl || ''
+            
+            // Extract and clean price
+            let price = 1299
+            if (item.price) {
+                const cleanedPrice = parseFloat(String(item.price).replace(/[^\d.]/g, ''))
+                if (!isNaN(cleanedPrice) && cleanedPrice > 0) {
+                    price = cleanedPrice
+                }
+            }
+
+            // Exclude items that are obviously not clothing
+            const lowerTitle = title.toLowerCase()
+            const isExcluded = lowerTitle.includes('book') || lowerTitle.includes('doll') || lowerTitle.includes('toy') || lowerTitle.includes('poster')
+
+            if (!isExcluded && imageUrl) {
+                results.push({
+                    title: title.trim(),
+                    price,
+                    url: link,
+                    platform: source,
+                    image: imageUrl
+                })
+            }
+        }
+
+        return results.slice(0, 3) // Return top 3 real results
+    } catch (err) {
+        console.error('Shopping search failed:', err)
+        return []
+    }
+}

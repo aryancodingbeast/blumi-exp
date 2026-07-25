@@ -1,6 +1,6 @@
 import type { VisionAnalysis } from '@/types/scanner'
 
-const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:generateContent'
+const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent'
 
 const ANALYSIS_PROMPT = `You are an expert clothing appraiser for the Indian second-hand fashion market.
 
@@ -219,4 +219,37 @@ export async function validateStepPhoto(stepId: string, base64Image: string): Pr
     const prompt = STEP_VALIDATION_PROMPTS[stepId]
     if (!prompt) throw new Error(`Unknown step: ${stepId}`)
     return callGemini(prompt, [base64Image], 0.05)
+}
+
+export async function callGeminiText(prompt: string, temperature = 0.5): Promise<string> {
+    const apiKey = getApiKey()
+    const requestBody = {
+        contents: [
+            {
+                parts: [
+                    { text: prompt }
+                ],
+            },
+        ],
+        generationConfig: {
+            temperature,
+            maxOutputTokens: 2048,
+        },
+    }
+
+    const response = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody),
+    })
+
+    if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(`Gemini API error (${response.status}): ${errorText}`)
+    }
+
+    const data = await response.json()
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text
+    if (!text) throw new Error('No response from Gemini')
+    return text
 }

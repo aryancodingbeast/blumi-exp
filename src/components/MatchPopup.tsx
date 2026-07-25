@@ -1,10 +1,17 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useRef, useState } from 'react'
 import { Match, Product } from '@/types'
 import Image from 'next/image'
 import Link from 'next/link'
 import { Sparkles, ArrowRight } from 'lucide-react'
+import gsap from 'gsap'
+import { SplitText } from 'gsap/dist/SplitText'
+import { useGSAP } from '@gsap/react'
+
+if (typeof window !== 'undefined' && SplitText) {
+    gsap.registerPlugin(SplitText)
+}
 
 interface MatchPopupProps {
     match: Match
@@ -14,21 +21,145 @@ interface MatchPopupProps {
 }
 
 export default function MatchPopup({ match, offeredProduct, matchedProduct, onClose }: MatchPopupProps) {
-    const [isVisible, setIsVisible] = useState(false)
-    const [showContent, setShowContent] = useState(false)
+    const overlayRef = useRef<HTMLDivElement>(null)
+    const closingRef = useRef(false)
+    const reduceMotionRef = useRef(false)
 
-    useEffect(() => {
-        // Staggered entrance animation
-        requestAnimationFrame(() => {
-            setIsVisible(true)
-            setTimeout(() => setShowContent(true), 300)
+    /* ------------------------------------------------------------------ */
+    /* Entrance — celebration timeline (elastic pop, slide-ins, char pop,  */
+    /* Physics2D confetti bursts). Exit is a paired ~0.3s timeline that    */
+    /* preserves the original 300ms close handoff.                         */
+    /* ------------------------------------------------------------------ */
+    useGSAP(() => {
+        const overlay = overlayRef.current
+        if (!overlay) return
+
+        const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+        reduceMotionRef.current = reduceMotion
+        if (reduceMotion) return
+
+        const q = gsap.utils.selector(overlay)
+        const splits: SplitText[] = []
+
+        // Kinetic char pop on the title (reverted on complete for parity)
+        let titleChars: Element[] = []
+        const titleEl = q('.match-title')[0]
+        if (titleEl) {
+            try {
+                const split = new SplitText(titleEl as HTMLElement, { type: 'chars', mask: 'chars' })
+                splits.push(split)
+                titleChars = split.chars as Element[]
+            } catch {
+                /* SplitText unavailable — fallback below */
+            }
+        }
+
+        const tl = gsap.timeline({
+            defaults: { ease: 'power3.out' },
+            onComplete: () => {
+                splits.forEach((s) => s.revert())
+                splits.length = 0
+            }
         })
-    }, [])
+
+        tl.from(overlay, { opacity: 0, duration: 0.3, ease: 'power2.out' })
+            .from(q('.match-popup-content'), {
+                scale: 0.7,
+                opacity: 0,
+                duration: 0.9,
+                ease: 'elastic.out(1, 0.5)'
+            }, '-=0.1')
+            .from(q('.match-sparkle'), {
+                scale: 0,
+                rotation: -120,
+                duration: 0.6,
+                ease: 'back.out(2.2)'
+            }, '-=0.7')
+
+        if (titleChars.length > 0) {
+            tl.from(titleChars, {
+                yPercent: 110,
+                scale: 0.6,
+                duration: 0.7,
+                stagger: 0.03,
+                ease: 'back.out(1.8)'
+            }, '-=0.55')
+        } else {
+            tl.from(q('.match-title'), { y: 24, opacity: 0, duration: 0.6 }, '-=0.55')
+        }
+
+        tl.from(q('.match-subtitle'), { y: 16, opacity: 0, duration: 0.5 }, '-=0.4')
+            .from(q('.match-items .match-item:first-child'), {
+                x: -60,
+                opacity: 0,
+                duration: 0.7
+            }, '-=0.35')
+            .from(q('.match-items .match-item:last-child'), {
+                x: 60,
+                opacity: 0,
+                duration: 0.7
+            }, '<')
+            .from(q('.match-swap-icon'), {
+                scale: 0,
+                opacity: 0,
+                duration: 0.55,
+                ease: 'back.out(2.4)'
+            }, '-=0.45')
+            .from(q('.match-actions > *'), {
+                y: 18,
+                opacity: 0,
+                duration: 0.5,
+                stagger: 0.08
+            }, '-=0.3')
+
+        // Confetti bursts — Physics2DPlugin is registered globally in GSAPProvider
+        const particleEls = q('.match-particle')
+        if (particleEls.length > 0) {
+            tl.set(particleEls, { opacity: 1 }, 0.35)
+            tl.to(particleEls, {
+                duration: 1.6,
+                physics2D: {
+                    velocity: 'random(200, 500)',
+                    angle: 'random(240, 300)',
+                    gravity: 600
+                },
+                rotation: 'random(-180, 180)',
+                opacity: 0,
+                stagger: 0.02,
+                ease: 'none'
+            }, 0.35)
+        }
+
+        return () => {
+            splits.forEach((s) => s.revert())
+            tl.kill()
+        }
+    }, { scope: overlayRef })
 
     const handleClose = () => {
-        setShowContent(false)
-        setIsVisible(false)
-        setTimeout(onClose, 300)
+        if (closingRef.current) return
+        closingRef.current = true
+
+        const overlay = overlayRef.current
+        if (!overlay || reduceMotionRef.current) {
+            // Reduced motion / no ref: keep the original 300ms handoff
+            setTimeout(onClose, 300)
+            return
+        }
+
+        // Paired exit timeline — same ~300ms close timing as before
+        const q = gsap.utils.selector(overlay)
+        const exitTl = gsap.timeline({
+            defaults: { ease: 'power2.in' },
+            onComplete: onClose
+        })
+        exitTl.to(q('.match-popup-content'), {
+            scale: 0.88,
+            opacity: 0,
+            duration: 0.3,
+            overwrite: 'auto'
+        }, 0)
+            .to(overlay, { opacity: 0, duration: 0.3, overwrite: 'auto' }, 0)
     }
 
     const getImageSrc = (product?: Product) => {
@@ -38,38 +169,42 @@ export default function MatchPopup({ match, offeredProduct, matchedProduct, onCl
     }
 
     // Generate random particle positions for the celebration effect
-    const particles = Array.from({ length: 20 }, (_, i) => ({
+    const [particles] = useState(() => Array.from({ length: 20 }, (_, i) => ({
         id: i,
         x: Math.random() * 100,
         y: Math.random() * 100,
         delay: Math.random() * 0.5,
         size: 4 + Math.random() * 8,
         color: i % 3 === 0 ? '#C8956C' : i % 3 === 1 ? '#C4724A' : '#D4A574'
-    }))
+    })))
 
     return (
         <div
-            className={`match-popup-overlay ${isVisible ? 'match-popup-visible' : ''}`}
+            ref={overlayRef}
+            className="match-popup-overlay"
             onClick={handleClose}
         >
-            {/* Celebration Particles */}
+            {/* Celebration Particles — driven by the GSAP Physics2D burst */}
             {particles.map(p => (
                 <div
                     key={p.id}
                     className="match-particle"
                     style={{
+                        position: 'absolute',
                         left: `${p.x}%`,
                         top: `${p.y}%`,
                         width: p.size,
                         height: p.size,
                         backgroundColor: p.color,
-                        animationDelay: `${p.delay}s`,
+                        borderRadius: '50%',
+                        opacity: 0,
+                        pointerEvents: 'none',
                     }}
                 />
             ))}
 
             <div
-                className={`match-popup-content ${showContent ? 'match-popup-content-visible' : ''}`}
+                className="match-popup-content"
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Match Header */}

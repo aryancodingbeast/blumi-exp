@@ -20,8 +20,8 @@ async function addWaitlistBuyer() {
   const { data, error } = await supabaseAdmin
     .from('waitlist')
     .upsert({
-      email: 'buyer@revclo.com',
-      name: 'REVCLO PREFERRED BUYER',
+      email: 'buyer@blumi.com',
+      name: 'BLUMI PREFERRED BUYER',
       waitlist_number: 1001
     }, { onConflict: 'email' })
     .select();

@@ -7,7 +7,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "serve-waitlist": "npx -y serve revclo-waitlist",
+    "serve-waitlist": "npx -y serve blumi-waitlist",
     "test": "vitest run"
   },
   "keywords": [],

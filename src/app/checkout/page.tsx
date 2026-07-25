@@ -166,7 +166,7 @@ export default function CheckoutPage() {
                     key: result.keyId,
                     amount: result.amount,
                     currency: result.currency || 'INR',
-                    name: 'REVCLO COLLECTIVE',
+                    name: 'BLUMI COLLECTIVE',
                     description: 'Secure Streetwear Checkout',
                     order_id: result.orderId,
                     prefill: {

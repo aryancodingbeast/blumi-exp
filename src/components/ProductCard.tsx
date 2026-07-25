@@ -3,11 +3,14 @@
 import React from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
+import gsap from 'gsap'
+import { useGSAP } from '@gsap/react'
 import { Product } from '@/types'
 import { isDropExpired } from '@/lib/expiry'
 
 export default function ProductCard({ product, index = 0 }: { product: Product, index?: number }) {
     const [isExpired, setIsExpired] = React.useState(false)
+    const cardRef = React.useRef<HTMLAnchorElement>(null)
 
     React.useEffect(() => {
         const checkExpiry = () => {
@@ -18,6 +21,57 @@ export default function ProductCard({ product, index = 0 }: { product: Product, 
         return () => clearInterval(interval)
     }, [])
 
+    /* ------------------------------------------------------------------ */
+    /* Magnetic hover lift — quickTo x/y nudges toward the cursor plus a   */
+    /* subtle lift, springing back elastically on leave. Pointer devices   */
+    /* only; disabled under prefers-reduced-motion.                        */
+    /* ------------------------------------------------------------------ */
+    useGSAP(() => {
+        const card = cardRef.current
+        if (!card) return
+
+        const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+        const canHover = window.matchMedia('(hover: hover)').matches
+        if (reduceMotion || !canHover) return
+
+        const xTo = gsap.quickTo(card, 'x', { duration: 0.4, ease: 'power3.out' })
+        const yTo = gsap.quickTo(card, 'y', { duration: 0.4, ease: 'power3.out' })
+
+        const onEnter = () => {
+            gsap.to(card, { scale: 1.01, duration: 0.4, ease: 'power3.out', overwrite: 'auto' })
+        }
+
+        const onMove = (e: PointerEvent) => {
+            const bounds = card.getBoundingClientRect()
+            const xNorm = (e.clientX - bounds.left) / bounds.width - 0.5
+            const yNorm = (e.clientY - bounds.top) / bounds.height - 0.5
+            xTo(xNorm * 12) // max ±6px pull toward cursor
+            yTo(yNorm * 12 - 4) // slight lift while hovered
+        }
+
+        const onLeave = () => {
+            gsap.to(card, {
+                x: 0,
+                y: 0,
+                scale: 1,
+                duration: 0.7,
+                ease: 'elastic.out(1, 0.5)',
+                overwrite: true
+            })
+        }
+
+        card.addEventListener('pointerenter', onEnter)
+        card.addEventListener('pointermove', onMove)
+        card.addEventListener('pointerleave', onLeave)
+
+        return () => {
+            card.removeEventListener('pointerenter', onEnter)
+            card.removeEventListener('pointermove', onMove)
+            card.removeEventListener('pointerleave', onLeave)
+            gsap.killTweensOf(card)
+        }
+    }, { scope: cardRef })
+
     const extractSize = (desc: string | null) => {
         if (!desc) return 'M'
         const match = desc.match(/\b(XS|S|M|L|XL|XXL)\b/i)
@@ -26,6 +80,7 @@ export default function ProductCard({ product, index = 0 }: { product: Product, 
 
     return (
         <Link
+            ref={cardRef}
             href={`/product/${product.id}`}
             prefetch={false}
             className="product-card-streetwear"
