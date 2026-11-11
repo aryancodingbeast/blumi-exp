@@ -1,1237 +1,1378 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
     ArrowLeft,
     Camera,
     Check,
     ChevronDown,
+    ChevronLeft,
     ChevronRight,
-    ChevronUp,
+    Edit3,
     ExternalLink,
     Globe,
-    Info,
+    Loader2,
+    Plus,
+    Ruler,
+    Search,
     Sparkles,
+    Upload,
     X,
 } from 'lucide-react';
-import { createRevcloListing } from '@/actions/marketplace';
-import { REVCLO_ASSETS } from '@/lib/revcloSeedData';
-import type { GooglePriceAgentReport } from '@/lib/supabasePriceAgent';
-import RevcloProductCard from '@/components/revclo/RevcloProductCard';
+import {
+    AuthenticatedMarketplaceUser,
+    createRevcloListing,
+    getCurrentUser,
+} from '@/actions/marketplace';
+import {
+    REVCLO_BRANDS_CATALOG,
+    REVCLO_CATEGORIES_CATALOG,
+    REVCLO_SIZE_GUIDE,
+    REVCLO_SIZE_OPTIONS,
+} from '@/lib/revcloSeedData';
 import GuidedGarmentScannerModal from '@/components/revclo/GuidedGarmentScannerModal';
+import type { GooglePriceAgentReport } from '@/lib/supabasePriceAgent';
 
-const CONDITIONS = [
-    {
-        id: 'Pristine',
-        label: 'Pristine',
-        desc: 'Item is in the best condition, with zero signs of wear or flaws.',
-        stopIndex: 0,
-    },
-    {
-        id: 'Excellent',
-        label: 'Excellent',
-        desc: 'Barely worn once or twice. Crisp structure and clean lining.',
-        stopIndex: 1,
-    },
-    {
-        id: 'Good',
-        label: 'Good',
-        desc: 'Gently pre-loved with minor natural patina mentioned in notes.',
-        stopIndex: 2,
-    },
-    {
-        id: 'Well-loved',
-        label: 'Well-loved',
-        desc: 'Visible vintage wear that adds archive character.',
-        stopIndex: 3,
-    },
-] as const;
+type ConditionOption = 'Pristine' | 'Excellent' | 'Good' | 'Well-loved';
+const CONDITIONS: ConditionOption[] = [
+    'Pristine',
+    'Excellent',
+    'Good',
+    'Well-loved',
+];
 
-export default function SellListingPage() {
+const CONDITION_DESCRIPTIONS: Record<ConditionOption, string> = {
+    Pristine: 'Flawless archive condition. Unworn or worn once with zero visible wear.',
+    Excellent: 'Lightly worn with crisp fabric structure and no stains or pulls.',
+    Good: 'Gently pre-loved with minor natural wear consistent with age.',
+    'Well-loved': 'Visible vintage character or patina priced fairly for quick resale.',
+};
+
+type ActivePickerSheet = 'category' | 'subCategory' | 'brand' | 'sizeGuide' | null;
+
+export default function SellFlowPage() {
     const router = useRouter();
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const sizeScrollRef = useRef<HTMLDivElement>(null);
+
+    const [currentUser, setCurrentUser] = useState<AuthenticatedMarketplaceUser | null>(null);
     const [step, setStep] = useState<1 | 2 | 3>(1);
 
-    // Step 1 fields (Figma 263:11704)
-    const [images, setImages] = useState<string[]>([
-        REVCLO_ASSETS.uploadThumb1,
-        REVCLO_ASSETS.uploadThumb2,
-        REVCLO_ASSETS.uploadThumb3,
-    ]);
-    const [price, setPrice] = useState<number>(450);
-    const [realRetailPrice, setRealRetailPrice] = useState<number>(1299);
-    const [realRetailSource, setRealRetailSource] = useState<string>('Google Shopping India');
-    const [editingPrice, setEditingPrice] = useState<boolean>(false);
-    const [condition, setCondition] = useState<'Pristine' | 'Excellent' | 'Good' | 'Well-loved'>('Pristine');
-    const [title, setTitle] = useState<string>('Quilted Leather Archive Shoulder Bag');
-    const [isActive, setIsActive] = useState<boolean>(true);
-    const [description, setDescription] = useState<string>(
-        'Buttery soft quilted cream handbag with brushed gold hardware. Zero scratches, stored in original dustbag.'
-    );
-
-    // Real-time Guided Scanner & Supabase Google Price Agent state
-    const [scannerModalOpen, setScannerModalOpen] = useState<boolean>(false);
-    const [aiScanning, setAiScanning] = useState<boolean>(false);
+    // Media & AI state — starts EMPTY (matching Figma 263:11620)
+    const [images, setImages] = useState<string[]>([]);
+    const [scannerOpen, setScannerOpen] = useState(false);
+    const [agentScanning, setAgentScanning] = useState(false);
     const [agentReport, setAgentReport] = useState<GooglePriceAgentReport | null>(null);
-    const [showGoogleSources, setShowGoogleSources] = useState<boolean>(false);
 
-    // Step 2 fields (Figma 263:11852)
-    const [category, setCategory] = useState<string>('Accessories');
-    const [subCategory, setSubCategory] = useState<string>('Handbags');
-    const [brand, setBrand] = useState<string>('QUILTED');
-    const [size, setSize] = useState<string>('Large');
+    // Step 1 fields
+    const [condition, setCondition] = useState<ConditionOption>('Pristine');
+    const [title, setTitle] = useState('');
+    const [activeStatus, setActiveStatus] = useState(true);
+    const [description, setDescription] = useState('');
+
+    // Step 2 fields
     const [department, setDepartment] = useState<'Women' | 'Men'>('Women');
-    const [sizeGuideOpen, setSizeGuideOpen] = useState<boolean>(false);
-    const [submitting, setSubmitting] = useState<boolean>(false);
+    const [category, setCategory] = useState('');
+    const [subCategory, setSubCategory] = useState('');
+    const [brand, setBrand] = useState('');
+    const [size, setSize] = useState('S');
 
-    const applyAgentReport = (capturedPhotos: string[], report: GooglePriceAgentReport) => {
-        if (capturedPhotos.length > 0) setImages(capturedPhotos);
-        setAgentReport(report);
-        setPrice(report.recommendedPrice);
-        setRealRetailPrice(report.realRetailPrice);
-        setRealRetailSource(report.realRetailSource);
-        setCondition(report.condition);
-        setTitle(report.productTitle);
-        setDescription(report.conditionDescription);
-        setCategory(report.category);
-        setSubCategory(report.subCategory);
-        setBrand(report.brand);
-        setSize(report.size);
-        setDepartment(report.department);
-    };
+    // Step 2 Bottom Sheet / Modal state (Figma 263:9672, 263:10861, 263:11852)
+    const [activeSheet, setActiveSheet] = useState<ActivePickerSheet>(null);
+    const [sheetSearch, setSheetSearch] = useState('');
 
-    const runDirectPriceAgent = async (overrideImages?: string[]) => {
-        setAiScanning(true);
+    // Step 3 fields (Figma 263:13903 - 263:15757)
+    const [price, setPrice] = useState<number>(0);
+    const [realRetailPrice, setRealRetailPrice] = useState<number>(0);
+    const [editingPrice, setEditingPrice] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
+    const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+    useEffect(() => {
+        getCurrentUser()
+            .then((u) => setCurrentUser(u))
+            .catch(() => {});
+    }, []);
+
+    const conditionIndex = CONDITIONS.indexOf(condition);
+
+    const runPriceAgent = async (
+        nextImages: string[],
+        hints?: {
+            brandHint?: string;
+            titleHint?: string;
+            conditionHint?: ConditionOption;
+        }
+    ) => {
+        if (nextImages.length === 0) return;
+        setAgentScanning(true);
+        setErrorMessage(null);
         try {
-            const targetImgs = overrideImages || images;
             const res = await fetch('/api/scanner/price-agent', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    images: targetImgs,
-                    brand,
-                    title,
-                    condition,
+                    images: nextImages,
+                    userBrandHint: hints?.brandHint || brand || undefined,
+                    userTitleHint: hints?.titleHint || title || undefined,
+                    userConditionHint: hints?.conditionHint || condition,
                 }),
             });
-            if (res.ok) {
-                const data = await res.json();
-                if (data.report) {
-                    applyAgentReport(targetImgs, data.report as GooglePriceAgentReport);
+            const data = await res.json();
+            if (data?.success && data?.report) {
+                const report: GooglePriceAgentReport = data.report;
+                setAgentReport(report);
+                setCondition(report.condition);
+                if (!title.trim()) setTitle(report.productTitle);
+                if (!brand.trim()) setBrand(report.brand);
+                if (!category.trim()) setCategory(report.category || 'Tops');
+                if (!subCategory.trim()) setSubCategory(report.subCategory || 'Blouses & Shirts');
+                setDepartment(report.department || 'Women');
+                if (report.size) setSize(report.size);
+                setPrice(report.recommendedPrice);
+                setRealRetailPrice(report.realRetailPrice);
+                if (!description.trim()) {
+                    setDescription(report.conditionDescription);
                 }
             }
         } catch {
-            // Keep existing values if offline
+            // fallback if offline
         } finally {
-            setAiScanning(false);
+            setAgentScanning(false);
         }
     };
 
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = () => {
-            if (typeof reader.result === 'string') {
-                const nextImgs = [reader.result as string, ...images.slice(0, 2)];
-                setImages(nextImgs);
-                runDirectPriceAgent(nextImgs);
+        const files = e.target.files;
+        if (!files || files.length === 0) return;
+
+        const readers = Array.from(files).map(
+            (file) =>
+                new Promise<string>((resolve) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(String(reader.result || ''));
+                    reader.readAsDataURL(file);
+                })
+        );
+
+        Promise.all(readers).then((newUrls) => {
+            const valid = newUrls.filter(Boolean);
+            const combined = [...images, ...valid].slice(0, 6);
+            setImages(combined);
+            runPriceAgent(combined);
+        });
+    };
+
+    const handleGuidedScannerComplete = (result: {
+        capturedImages: string[];
+        report: GooglePriceAgentReport;
+    }) => {
+        setImages(result.capturedImages);
+        setAgentReport(result.report);
+        setCondition(result.report.condition);
+        setTitle(result.report.productTitle);
+        setBrand(result.report.brand);
+        setCategory(result.report.category || 'Tops');
+        setSubCategory(result.report.subCategory || 'Blouses & Shirts');
+        setDepartment(result.report.department);
+        setSize(result.report.size);
+        setPrice(result.report.recommendedPrice);
+        setRealRetailPrice(result.report.realRetailPrice);
+        setDescription(result.report.conditionDescription);
+        setScannerOpen(false);
+    };
+
+    const removeImage = (idx: number) => {
+        setImages((prev) => prev.filter((_, i) => i !== idx));
+    };
+
+    const handleStepContinue = () => {
+        setErrorMessage(null);
+        if (step === 1) {
+            if (images.length === 0) {
+                setErrorMessage('Please scan or upload at least 1 photo of your garment to continue.');
+                return;
             }
-        };
-        reader.readAsDataURL(file);
+            if (!title.trim()) {
+                setErrorMessage('Please enter a product title.');
+                return;
+            }
+            if (!category) setCategory(agentReport?.category || 'Tops');
+            if (!subCategory) {
+                const defaultSub =
+                    REVCLO_CATEGORIES_CATALOG[category || 'Tops']?.subCategories?.[0] ||
+                    'Blouses & Shirts';
+                setSubCategory(agentReport?.subCategory || defaultSub);
+            }
+            if (!brand) setBrand(agentReport?.brand || 'Zara');
+            if (!price) setPrice(agentReport?.recommendedPrice || 499);
+            setStep(2);
+        } else if (step === 2) {
+            if (!category || !brand || !size) {
+                setErrorMessage('Please select a Category, Brand, and Size.');
+                return;
+            }
+            setStep(3);
+        }
     };
 
     const handlePublish = async () => {
+        setErrorMessage(null);
+        if (!currentUser) {
+            router.push('/login?callbackUrl=/sell');
+            return;
+        }
+        if (images.length === 0) {
+            setErrorMessage('Please upload at least one photo.');
+            return;
+        }
+
         setSubmitting(true);
-        await createRevcloListing({
-            name: title,
-            brand,
-            price,
-            size,
-            condition,
-            category,
-            sub_category: subCategory,
-            department,
-            description,
-            images,
-            active: isActive,
-        });
-        setSubmitting(false);
-        router.push('/closet');
+        try {
+            const res = await createRevcloListing({
+                name: title.trim() || 'Curated Archive Garment',
+                brand: brand.trim() || 'RevClo Archive',
+                price: Number(price) || 399,
+                original_price: realRetailPrice || Math.round((Number(price) || 399) * 1.8),
+                size: size || 'M',
+                condition,
+                category: category || 'Tops',
+                sub_category: subCategory || 'Blouses & Shirts',
+                department,
+                description:
+                    description.trim() ||
+                    `${brand} ${title} in ${condition.toLowerCase()} condition.`,
+                images,
+                active: activeStatus,
+                color: agentReport?.color,
+                material: agentReport?.fabric,
+            });
+
+            if (!res.success) {
+                setErrorMessage(res.error || 'Could not publish listing.');
+                setSubmitting(false);
+                return;
+            }
+
+            if (res.product?.id) {
+                router.push(`/product/${res.product.id}`);
+            } else {
+                router.push('/closet');
+            }
+        } catch (err: any) {
+            setErrorMessage(err?.message || 'Failed to publish listing.');
+            setSubmitting(false);
+        }
     };
 
-    const selectedCondObj =
-        CONDITIONS.find((c) => c.id === condition) || CONDITIONS[0];
+    const availableCategories = useMemo(
+        () => Object.keys(REVCLO_CATEGORIES_CATALOG),
+        []
+    );
+
+    const availableSubCategories = useMemo(() => {
+        const catKey =
+            availableCategories.find(
+                (c) => c.toLowerCase() === category.toLowerCase()
+            ) || 'Tops';
+        return REVCLO_CATEGORIES_CATALOG[catKey]?.subCategories || [];
+    }, [category, availableCategories]);
+
+    const filteredSheetCategories = useMemo(() => {
+        const q = sheetSearch.trim().toLowerCase();
+        if (!q) return availableCategories;
+        return availableCategories.filter((c) => c.toLowerCase().includes(q));
+    }, [availableCategories, sheetSearch]);
+
+    const filteredSheetSubCategories = useMemo(() => {
+        const q = sheetSearch.trim().toLowerCase();
+        if (!q) return availableSubCategories;
+        return availableSubCategories.filter((s) => s.toLowerCase().includes(q));
+    }, [availableSubCategories, sheetSearch]);
+
+    const filteredSheetBrands = useMemo(() => {
+        const q = sheetSearch.trim().toLowerCase();
+        const list = [...REVCLO_BRANDS_CATALOG];
+        if (agentReport?.brand && !list.includes(agentReport.brand)) {
+            list.unshift(agentReport.brand);
+        }
+        if (!q) return list;
+        const matches = list.filter((b) => b.toLowerCase().includes(q));
+        if (matches.length === 0 && sheetSearch.trim()) {
+            return [sheetSearch.trim()];
+        }
+        return matches;
+    }, [sheetSearch, agentReport]);
+
+    const openPicker = (sheet: ActivePickerSheet) => {
+        setSheetSearch('');
+        setActiveSheet(sheet);
+    };
+
+    const scrollSizes = (dir: 'left' | 'right') => {
+        if (!sizeScrollRef.current) return;
+        sizeScrollRef.current.scrollBy({
+            left: dir === 'left' ? -160 : 160,
+            behavior: 'smooth',
+        });
+    };
 
     return (
-        <div style={{ minHeight: '100vh', paddingBottom: 96, background: 'var(--bg-canvas)' }}>
-            {/* Header matching Figma 263:11704 */}
-            <header className="revclo-page-header">
-                <button
-                    type="button"
-                    onClick={() => (step > 1 ? setStep((step - 1) as 1 | 2) : router.back())}
-                    className="revclo-icon-btn"
-                    aria-label="Back"
-                >
-                    <ArrowLeft size={17} />
-                </button>
-                <span className="revclo-page-title">Upload new</span>
-                <button
-                    type="button"
-                    onClick={() => setScannerModalOpen(true)}
-                    style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 5,
-                        padding: '6px 11px',
-                        borderRadius: 999,
-                        background: 'var(--terracotta-920)',
-                        color: '#ffffff',
-                        fontSize: '11px',
-                        fontWeight: 600,
-                    }}
-                >
-                    <Camera size={12} />
-                    <span>Guided Scan</span>
-                </button>
-            </header>
-
-            {/* 3-Step Progress Bar: Uploads -> Details -> Preview */}
-            <div
-                style={{
-                    padding: '14px 16px 12px',
-                    background: '#ffffff',
-                    borderBottom: '1px solid var(--border-sand)',
-                }}
-            >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    {[
-                        { num: 1, label: 'Uploads' },
-                        { num: 2, label: 'Details' },
-                        { num: 3, label: 'Preview' },
-                    ].map((s) => {
-                        const active = step >= s.num;
-                        return (
-                            <button
-                                key={s.num}
-                                type="button"
-                                onClick={() => setStep(s.num as 1 | 2 | 3)}
-                                style={{
-                                    flex: 1,
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    gap: 6,
-                                    textAlign: 'left',
-                                }}
-                            >
-                                <div
-                                    style={{
-                                        height: 4,
-                                        borderRadius: 999,
-                                        background: active
-                                            ? 'var(--terracotta-800)'
-                                            : 'var(--border-sand)',
-                                        transition: 'background 0.25s ease',
-                                    }}
-                                />
-                                <span
-                                    style={{
-                                        fontSize: '11px',
-                                        fontWeight: step === s.num ? 700 : 500,
-                                        color: active
-                                            ? 'var(--terracotta-900)'
-                                            : 'var(--text-muted)',
-                                    }}
-                                >
-                                    {s.label}
-                                </span>
-                            </button>
-                        );
-                    })}
-                </div>
-            </div>
-
-            {/* AI Recommended Price + Supabase Google Price Agent Banner (Figma 263:11704 + Google Price Intel) */}
-            <div
-                style={{
-                    margin: '14px 16px',
-                    borderRadius: 14,
-                    background: 'var(--terracotta-950)',
-                    color: '#ffffff',
-                    border: '1px solid var(--terracotta-800)',
-                    overflow: 'hidden',
-                }}
-            >
-                <div
-                    style={{
-                        padding: '12px 14px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                    }}
-                >
-                    <div>
-                        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                            {editingPrice ? (
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                    <span style={{ fontSize: '18px', fontWeight: 700 }}>₹</span>
-                                    <input
-                                        type="number"
-                                        value={price}
-                                        onChange={(e) => setPrice(Number(e.target.value))}
-                                        style={{
-                                            width: 90,
-                                            padding: '3px 8px',
-                                            borderRadius: 6,
-                                            border: '1px solid var(--terracotta-400)',
-                                            background: '#ffffff',
-                                            color: 'var(--text-ink)',
-                                            fontSize: '16px',
-                                            fontWeight: 700,
-                                        }}
-                                    />
-                                </div>
-                            ) : (
-                                <span style={{ fontSize: '21px', fontWeight: 700 }}>
-                                    ₹{price.toLocaleString('en-IN')}
-                                </span>
-                            )}
-                            <span style={{ fontSize: '11.5px', color: 'var(--terracotta-200)' }}>
-                                Best price for the item
-                            </span>
-                        </div>
-
-                        {/* Real Retail Price from Supabase Google Price Agent */}
-                        <div
-                            style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 6,
-                                marginTop: 4,
-                                fontSize: '11px',
-                                color: '#b0c988',
-                            }}
-                        >
-                            <Globe size={12} />
-                            <span>
-                                Real Price on Google:{' '}
-                                <strong>₹{realRetailPrice.toLocaleString('en-IN')}</strong> (
-                                {realRetailSource})
-                            </span>
-                        </div>
-                    </div>
-
-                    <div style={{ display: 'flex', gap: 6 }}>
-                        <button
-                            type="button"
-                            onClick={() => runDirectPriceAgent()}
-                            disabled={aiScanning}
-                            style={{
-                                padding: '6px 10px',
-                                borderRadius: 8,
-                                background: 'rgba(245, 158, 11, 0.2)',
-                                border: '1px solid rgba(245, 158, 11, 0.45)',
-                                color: '#fcd34d',
-                                fontSize: '11px',
-                                fontWeight: 600,
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: 4,
-                            }}
-                            title="Run Supabase Google Price Scanner Agent"
-                        >
-                            <Sparkles size={12} />
-                            <span>{aiScanning ? 'Scanning Google...' : 'Scan Price'}</span>
-                        </button>
-
-                        <button
-                            type="button"
-                            onClick={() => setEditingPrice(!editingPrice)}
-                            style={{
-                                padding: '6px 12px',
-                                borderRadius: 8,
-                                background: 'rgba(255,255,255,0.14)',
-                                color: '#ffffff',
-                                fontSize: '12px',
-                                fontWeight: 600,
-                            }}
-                        >
-                            {editingPrice ? 'Done' : 'Change'}
-                        </button>
-                    </div>
-                </div>
-
-                {/* Expandable Live Google Sources Bar */}
-                <div
-                    style={{
-                        padding: '8px 14px',
-                        background: 'rgba(0,0,0,0.25)',
-                        borderTop: '1px solid rgba(255,255,255,0.1)',
-                    }}
-                >
-                    <button
-                        type="button"
-                        onClick={() => setShowGoogleSources(!showGoogleSources)}
-                        style={{
-                            width: '100%',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            color: 'var(--terracotta-200)',
-                            fontSize: '11px',
-                            fontWeight: 600,
-                        }}
-                    >
-                        <span>
-                            {agentReport
-                                ? `Supabase Agent verified ${agentReport.googleSources.length} Google listings • Range ₹${agentReport.resaleLow.toLocaleString('en-IN')} – ₹${agentReport.resaleHigh.toLocaleString('en-IN')}`
-                                : 'Tap "Guided Scan" or "Scan Price" to fetch live Google retail comps'}
-                        </span>
-                        {showGoogleSources ? (
-                            <ChevronUp size={14} />
-                        ) : (
-                            <ChevronDown size={14} />
-                        )}
-                    </button>
-
-                    {showGoogleSources && (
-                        <div
-                            style={{
-                                marginTop: 8,
-                                display: 'flex',
-                                flexDirection: 'column',
-                                gap: 6,
-                            }}
-                        >
-                            {(
-                                agentReport?.googleSources || [
-                                    {
-                                        title: `${brand} ${title}`,
-                                        price: realRetailPrice,
-                                        platform: realRetailSource,
-                                        url: `https://www.google.com/search?tbm=shop&q=${encodeURIComponent(`${brand} ${title}`)}`,
-                                    },
-                                ]
-                            ).map((src, i) => (
-                                <a
-                                    key={i}
-                                    href={src.url || 'https://www.google.com/shopping'}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'space-between',
-                                        padding: '6px 8px',
-                                        borderRadius: 8,
-                                        background: 'rgba(255,255,255,0.08)',
-                                        fontSize: '11px',
-                                        color: '#ffffff',
-                                    }}
-                                >
-                                    <span
-                                        style={{
-                                            whiteSpace: 'nowrap',
-                                            overflow: 'hidden',
-                                            textOverflow: 'ellipsis',
-                                            maxWidth: '68%',
-                                        }}
-                                    >
-                                        {src.platform}: {src.title}
-                                    </span>
-                                    <span
-                                        style={{
-                                            display: 'inline-flex',
-                                            alignItems: 'center',
-                                            gap: 4,
-                                            fontWeight: 700,
-                                            color: '#fcd34d',
-                                        }}
-                                    >
-                                        ₹{Number(src.price || realRetailPrice).toLocaleString('en-IN')}
-                                        <ExternalLink size={10} />
-                                    </span>
-                                </a>
-                            ))}
-                        </div>
-                    )}
-                </div>
-            </div>
-
-            {step === 1 && (
-                /* =========================================================
-                   STEP 1: UPLOADS, REAL-TIME GUIDED SCAN & AI CONDITION (Figma 263:11704)
-                   ========================================================= */
-                <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 18 }}>
-                    {/* Launch Real-Time Guided Photo Scanner CTA */}
-                    <button
-                        type="button"
-                        onClick={() => setScannerModalOpen(true)}
-                        style={{
-                            width: '100%',
-                            padding: '12px 14px',
-                            borderRadius: 12,
-                            background: '#ffffff',
-                            border: '1.5px dashed var(--terracotta-800)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                        }}
-                    >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                            <div
-                                style={{
-                                    width: 36,
-                                    height: 36,
-                                    borderRadius: 10,
-                                    background: 'var(--terracotta-50)',
-                                    color: 'var(--terracotta-800)',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                }}
-                            >
-                                <Camera size={18} />
-                            </div>
-                            <div style={{ textAlign: 'left' }}>
-                                <div style={{ fontSize: '13px', fontWeight: 700 }}>
-                                    Real-Time Guided Photo Scanner
-                                </div>
-                                <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
-                                    Step-by-step camera guidance + automatic Google Price scan
-                                </div>
-                            </div>
-                        </div>
-                        <ChevronRight size={16} color="var(--terracotta-800)" />
-                    </button>
-
-                    {/* 3 Media Upload Slots */}
-                    <div>
-                        <div
-                            style={{
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                                marginBottom: 8,
-                            }}
-                        >
-                            <span style={{ fontSize: '13px', fontWeight: 600 }}>
-                                Captured Photos ({images.length})
-                            </span>
-                            <label
-                                style={{
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: 5,
-                                    fontSize: '12px',
-                                    fontWeight: 600,
-                                    color: 'var(--terracotta-800)',
-                                    cursor: 'pointer',
-                                }}
-                            >
-                                <Camera size={14} />
-                                <span>Upload file</span>
-                                <input
-                                    type="file"
-                                    accept="image/*"
-                                    onChange={handleFileUpload}
-                                    style={{ display: 'none' }}
-                                />
-                            </label>
-                        </div>
-
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
-                            {images.map((img, i) => (
-                                <div
-                                    key={i}
-                                    style={{
-                                        position: 'relative',
-                                        aspectRatio: '1 / 1.15',
-                                        borderRadius: 12,
-                                        overflow: 'hidden',
-                                        border:
-                                            i === 0
-                                                ? '2px solid var(--terracotta-800)'
-                                                : '1px solid var(--border-card)',
-                                        background: 'var(--bg-card)',
-                                    }}
-                                >
-                                    <img
-                                        src={img}
-                                        alt={`Upload ${i + 1}`}
-                                        style={{
-                                            width: '100%',
-                                            height: '100%',
-                                            objectFit: 'cover',
-                                        }}
-                                    />
-                                    <span
-                                        style={{
-                                            position: 'absolute',
-                                            bottom: 6,
-                                            left: 6,
-                                            display: 'inline-flex',
-                                            alignItems: 'center',
-                                            gap: 4,
-                                            padding: '2px 7px',
-                                            borderRadius: 999,
-                                            background: 'rgba(22,22,22,0.8)',
-                                            color: '#ffffff',
-                                            fontSize: '10px',
-                                            fontWeight: 600,
-                                        }}
-                                    >
-                                        <span
-                                            style={{
-                                                width: 6,
-                                                height: 6,
-                                                borderRadius: 999,
-                                                background: '#22c55e',
-                                            }}
-                                        />
-                                        {i === 0 ? 'Primary' : i === 1 ? 'Back' : 'Tag'}
-                                    </span>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* Interactive AI Condition Card with 5-Stop Gradient Bar matching 263:11704 */}
-                    <div
-                        style={{
-                            background: '#ffffff',
-                            borderRadius: 14,
-                            border: '1px solid var(--border-card)',
-                            padding: '14px',
-                        }}
-                    >
-                        <div
-                            style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'space-between',
-                                marginBottom: 10,
-                            }}
-                        >
-                            <div>
-                                <span
-                                    style={{
-                                        fontSize: '11px',
-                                        fontWeight: 600,
-                                        color: 'var(--text-muted)',
-                                        textTransform: 'uppercase',
-                                    }}
-                                >
-                                    Condition (AI Assessed)
-                                </span>
-                                <div
-                                    style={{
-                                        fontSize: '16px',
-                                        fontWeight: 700,
-                                        color: '#007a00',
-                                        marginTop: 2,
-                                    }}
-                                >
-                                    {selectedCondObj.label}
-                                </div>
-                            </div>
-
-                            <span className="revclo-pristine-pill" style={{ position: 'static' }}>
-                                AI Verified
-                            </span>
-                        </div>
-
-                        {/* 5-Stop Gradient Indicator Bar */}
-                        <div
-                            style={{
-                                position: 'relative',
-                                height: 8,
-                                borderRadius: 999,
-                                background:
-                                    'linear-gradient(90deg, #007a00 0%, #65a30d 35%, #eab308 70%, #dc2626 100%)',
-                                margin: '12px 0',
-                            }}
-                        >
-                            <div
-                                style={{
-                                    position: 'absolute',
-                                    top: -4,
-                                    left: `${selectedCondObj.stopIndex * 30 + 5}%`,
-                                    width: 16,
-                                    height: 16,
-                                    borderRadius: 999,
-                                    background: '#ffffff',
-                                    border: '3px solid var(--terracotta-920)',
-                                    boxShadow: '0 2px 6px rgba(0,0,0,0.2)',
-                                    transition: 'left 0.25s ease',
-                                }}
-                            />
-                        </div>
-
-                        <p
-                            style={{
-                                fontSize: '12px',
-                                color: 'var(--text-secondary)',
-                                marginBottom: 12,
-                            }}
-                        >
-                            {selectedCondObj.desc}
-                        </p>
-
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
-                            {CONDITIONS.map((c) => {
-                                const active = condition === c.id;
-                                return (
-                                    <button
-                                        key={c.id}
-                                        type="button"
-                                        onClick={() => setCondition(c.id)}
-                                        style={{
-                                            padding: '6px 4px',
-                                            borderRadius: 8,
-                                            fontSize: '11px',
-                                            fontWeight: active ? 700 : 500,
-                                            background: active
-                                                ? 'var(--terracotta-920)'
-                                                : 'var(--bg-canvas)',
-                                            color: active ? '#ffffff' : 'var(--text-secondary)',
-                                            border: '1px solid var(--border-sand)',
-                                        }}
-                                    >
-                                        {c.label}
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    </div>
-
-                    {/* Product Title */}
-                    <div
-                        style={{
-                            background: '#ffffff',
-                            borderRadius: 12,
-                            border: '1px solid var(--border-sand)',
-                            padding: '12px 14px',
-                        }}
-                    >
-                        <label
-                            style={{
-                                display: 'block',
-                                fontSize: '11px',
-                                fontWeight: 600,
-                                color: 'var(--text-muted)',
-                                marginBottom: 4,
-                            }}
-                        >
-                            Product Title
-                        </label>
-                        <input
-                            type="text"
-                            value={title}
-                            onChange={(e) => setTitle(e.target.value)}
-                            style={{
-                                width: '100%',
-                                border: 'none',
-                                outline: 'none',
-                                fontSize: '14px',
-                                fontWeight: 600,
-                                color: 'var(--text-ink)',
-                            }}
-                        />
-                    </div>
-
-                    {/* Status Toggle: Active / Inactive */}
-                    <div
-                        style={{
-                            background: '#ffffff',
-                            borderRadius: 12,
-                            border: '1px solid var(--border-sand)',
-                            padding: '12px 14px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                        }}
-                    >
-                        <div>
-                            <div style={{ fontSize: '13px', fontWeight: 600 }}>Listing Status</div>
-                            <div style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>
-                                {isActive ? 'Active — Visible in marketplace' : 'Inactive — Hidden draft'}
-                            </div>
-                        </div>
-                        <button
-                            type="button"
-                            onClick={() => setIsActive(!isActive)}
-                            style={{
-                                padding: '6px 14px',
-                                borderRadius: 999,
-                                background: isActive ? 'var(--badge-pristine-bg)' : '#e5e2dc',
-                                color: isActive ? 'var(--badge-pristine-text)' : 'var(--text-secondary)',
-                                border: '1px solid var(--badge-pristine-border)',
-                                fontSize: '12px',
-                                fontWeight: 700,
-                            }}
-                        >
-                            {isActive ? 'Active' : 'Inactive'}
-                        </button>
-                    </div>
-
-                    {/* Description */}
-                    <div
-                        style={{
-                            background: '#ffffff',
-                            borderRadius: 12,
-                            border: '1px solid var(--border-sand)',
-                            padding: '12px 14px',
-                        }}
-                    >
-                        <label
-                            style={{
-                                display: 'block',
-                                fontSize: '11px',
-                                fontWeight: 600,
-                                color: 'var(--text-muted)',
-                                marginBottom: 6,
-                            }}
-                        >
-                            Description
-                        </label>
-                        <textarea
-                            rows={3}
-                            value={description}
-                            onChange={(e) => setDescription(e.target.value)}
-                            style={{
-                                width: '100%',
-                                border: 'none',
-                                outline: 'none',
-                                fontSize: '13px',
-                                lineHeight: 1.45,
-                                color: 'var(--text-ink)',
-                                resize: 'vertical',
-                            }}
-                        />
-                    </div>
-                </div>
-            )}
-
-            {step === 2 && (
-                /* =========================================================
-                   STEP 2: CATEGORY, BRAND & SIZE DETAILS (Figma 263:11852)
-                   ========================================================= */
-                <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-                    {/* Category with SUGGESTED Pill */}
-                    <div
-                        style={{
-                            background: '#ffffff',
-                            borderRadius: 14,
-                            border: '1px solid var(--border-sand)',
-                            padding: '14px',
-                        }}
-                    >
-                        <div
-                            style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'space-between',
-                                marginBottom: 10,
-                            }}
-                        >
-                            <span style={{ fontSize: '13px', fontWeight: 600 }}>Category</span>
-                            <span className="revclo-pristine-pill" style={{ position: 'static' }}>
-                                SUGGESTED
-                            </span>
-                        </div>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                            {['Accessories', 'Dresses', 'Tops', 'Footwear', 'Jewellery'].map(
-                                (cat) => {
-                                    const active = category === cat;
-                                    return (
-                                        <button
-                                            key={cat}
-                                            type="button"
-                                            onClick={() => setCategory(cat)}
-                                            style={{
-                                                padding: '8px 14px',
-                                                borderRadius: 999,
-                                                background: active
-                                                    ? 'var(--terracotta-920)'
-                                                    : 'var(--bg-canvas)',
-                                                color: active ? '#ffffff' : 'var(--text-ink)',
-                                                border: '1px solid var(--border-sand)',
-                                                fontSize: '12.5px',
-                                                fontWeight: 600,
-                                            }}
-                                        >
-                                            {cat}
-                                        </button>
-                                    );
-                                }
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Sub-Category */}
-                    <div
-                        style={{
-                            background: '#ffffff',
-                            borderRadius: 14,
-                            border: '1px solid var(--border-sand)',
-                            padding: '14px',
-                        }}
-                    >
-                        <span
-                            style={{
-                                display: 'block',
-                                fontSize: '13px',
-                                fontWeight: 600,
-                                marginBottom: 10,
-                            }}
-                        >
-                            Sub-Category
-                        </span>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                            {[
-                                'Handbags',
-                                'Glasses & Sunglasses',
-                                'Mini Dresses',
-                                'Jackets',
-                                'Loafers',
-                                'Bracelets',
-                            ].map((sub) => {
-                                const active = subCategory === sub;
-                                return (
-                                    <button
-                                        key={sub}
-                                        type="button"
-                                        onClick={() => setSubCategory(sub)}
-                                        style={{
-                                            padding: '7px 12px',
-                                            borderRadius: 999,
-                                            background: active
-                                                ? 'var(--terracotta-920)'
-                                                : 'var(--bg-canvas)',
-                                            color: active ? '#ffffff' : 'var(--text-ink)',
-                                            border: '1px solid var(--border-sand)',
-                                            fontSize: '12px',
-                                            fontWeight: 500,
-                                        }}
-                                    >
-                                        {sub}
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    </div>
-
-                    {/* Brand Selector */}
-                    <div
-                        style={{
-                            background: '#ffffff',
-                            borderRadius: 14,
-                            border: '1px solid var(--border-sand)',
-                            padding: '14px',
-                        }}
-                    >
-                        <span
-                            style={{
-                                display: 'block',
-                                fontSize: '13px',
-                                fontWeight: 600,
-                                marginBottom: 10,
-                            }}
-                        >
-                            Brand
-                        </span>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                            {['QUILTED', 'Diesel', 'Prada', 'Versace', 'Lethal', 'Zara', 'H&M'].map(
-                                (b) => {
-                                    const active = brand === b;
-                                    return (
-                                        <button
-                                            key={b}
-                                            type="button"
-                                            onClick={() => setBrand(b)}
-                                            style={{
-                                                padding: '8px 14px',
-                                                borderRadius: 999,
-                                                background: active
-                                                    ? 'var(--terracotta-920)'
-                                                    : 'var(--bg-canvas)',
-                                                color: active ? '#ffffff' : 'var(--text-ink)',
-                                                border: '1px solid var(--border-sand)',
-                                                fontSize: '12.5px',
-                                                fontWeight: 600,
-                                            }}
-                                        >
-                                            {b}
-                                        </button>
-                                    );
-                                }
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Size + Size Guide Modal Trigger */}
-                    <div
-                        style={{
-                            background: '#ffffff',
-                            borderRadius: 14,
-                            border: '1px solid var(--border-sand)',
-                            padding: '14px',
-                        }}
-                    >
-                        <div
-                            style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'space-between',
-                                marginBottom: 10,
-                            }}
-                        >
-                            <span style={{ fontSize: '13px', fontWeight: 600 }}>Size</span>
-                            <button
-                                type="button"
-                                onClick={() => setSizeGuideOpen(true)}
-                                style={{
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: 4,
-                                    fontSize: '12px',
-                                    fontWeight: 600,
-                                    color: 'var(--terracotta-800)',
-                                }}
-                            >
-                                <Info size={13} />
-                                <span>Size guide</span>
-                            </button>
-                        </div>
-
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-                            {['XS', 'S', 'M', 'Large', 'UK9', 'One Size'].map((sz) => {
-                                const active = size === sz;
-                                return (
-                                    <button
-                                        key={sz}
-                                        type="button"
-                                        onClick={() => setSize(sz)}
-                                        style={{
-                                            padding: '10px',
-                                            borderRadius: 10,
-                                            background: active
-                                                ? 'var(--terracotta-920)'
-                                                : 'var(--bg-canvas)',
-                                            color: active ? '#ffffff' : 'var(--text-ink)',
-                                            border: '1px solid var(--border-sand)',
-                                            fontSize: '12.5px',
-                                            fontWeight: 600,
-                                        }}
-                                    >
-                                        {sz}
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {step === 3 && (
-                /* =========================================================
-                   STEP 3: PREVIEW & PUBLISH
-                   ========================================================= */
-                <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-                    <div
-                        style={{
-                            background: '#ffffff',
-                            borderRadius: 16,
-                            border: '1px solid var(--border-card)',
-                            padding: 16,
-                        }}
-                    >
-                        <div
-                            style={{
-                                fontSize: '12px',
-                                fontWeight: 700,
-                                color: 'var(--terracotta-800)',
-                                textTransform: 'uppercase',
-                                marginBottom: 12,
-                            }}
-                        >
-                            Marketplace Feed Preview
-                        </div>
-
-                        <div style={{ maxWidth: 210, margin: '0 auto' }}>
-                            <RevcloProductCard
-                                product={{
-                                    id: 'preview-item',
-                                    seller_id: 'demo',
-                                    name: title,
-                                    title,
-                                    description,
-                                    brand,
-                                    price,
-                                    original_price: realRetailPrice,
-                                    images,
-                                    size,
-                                    condition,
-                                    category,
-                                    trust_score: agentReport?.trustScore || 96,
-                                    status: 'available',
-                                    likes_count: 1,
-                                    created_at: new Date().toISOString(),
-                                }}
-                                badgeMode="trust"
-                            />
-                        </div>
-
-                        <div
-                            style={{
-                                marginTop: 16,
-                                paddingTop: 12,
-                                borderTop: '1px solid var(--border-sand)',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                gap: 6,
-                                fontSize: '12.5px',
-                            }}
-                        >
-                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                <span style={{ color: 'var(--text-muted)' }}>Title</span>
-                                <span style={{ fontWeight: 600 }}>{title}</span>
-                            </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                <span style={{ color: 'var(--text-muted)' }}>Category</span>
-                                <span style={{ fontWeight: 600 }}>
-                                    {category} • {subCategory}
-                                </span>
-                            </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                <span style={{ color: 'var(--text-muted)' }}>
-                                    Real Google Retail Price
-                                </span>
-                                <span style={{ fontWeight: 600 }}>
-                                    ₹{realRetailPrice.toLocaleString('en-IN')} ({realRetailSource})
-                                </span>
-                            </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                <span style={{ color: 'var(--text-muted)' }}>Condition</span>
-                                <span style={{ fontWeight: 600, color: '#007a00' }}>
-                                    {condition} ({agentReport?.trustScore || 96} Trust Score)
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Sticky Bottom CTA Bar */}
-            <div
-                style={{
-                    position: 'fixed',
-                    bottom: 0,
-                    left: '50%',
-                    transform: 'translateX(-50%)',
-                    width: '100%',
-                    maxWidth: 460,
-                    padding: '12px 16px',
-                    background: '#ffffff',
-                    borderTop: '1px solid var(--border-sand)',
-                    display: 'flex',
-                    gap: 10,
-                    zIndex: 50,
-                }}
-            >
-                {step < 3 ? (
-                    <button
-                        type="button"
-                        onClick={() => setStep((step + 1) as 2 | 3)}
-                        className="revclo-primary-btn"
-                        style={{ width: '100%' }}
-                    >
-                        <span>Continue to {step === 1 ? 'Details' : 'Preview'}</span>
-                        <ChevronRight size={16} />
-                    </button>
-                ) : (
-                    <button
-                        type="button"
-                        disabled={submitting}
-                        onClick={handlePublish}
-                        className="revclo-primary-btn"
-                        style={{ width: '100%' }}
-                    >
-                        <Check size={16} />
-                        <span>{submitting ? 'Publishing to Closet...' : 'Publish Listing'}</span>
-                    </button>
-                )}
-            </div>
-
-            {/* Real-Time Guided Garment Scanner + Supabase Google Price Agent Modal */}
+        <>
             <GuidedGarmentScannerModal
-                isOpen={scannerModalOpen}
-                onClose={() => setScannerModalOpen(false)}
-                initialBrandHint={brand}
-                onComplete={(capturedPhotos, report) => {
-                    applyAgentReport(capturedPhotos, report);
-                    setShowGoogleSources(true);
-                }}
+                isOpen={scannerOpen}
+                onClose={() => setScannerOpen(false)}
+                onComplete={(capturedImages, report) =>
+                    handleGuidedScannerComplete({ capturedImages, report })
+                }
             />
 
-            {/* Size Guide Modal */}
-            {sizeGuideOpen && (
-                <div className="revclo-backdrop" onClick={() => setSizeGuideOpen(false)}>
-                    <div
-                        className="revclo-sheet"
-                        style={{ padding: 20 }}
-                        onClick={(e) => e.stopPropagation()}
+            {/* Hidden File Input */}
+            <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={handleFileUpload}
+                style={{ display: 'none' }}
+            />
+
+            {/* Top Subheader */}
+            <header className="revclo-page-header">
+                <div className="flex items-center gap-3">
+                    <button
+                        type="button"
+                        onClick={() =>
+                            step > 1 ? setStep((s) => (s - 1) as 1 | 2 | 3) : router.back()
+                        }
+                        className="revclo-icon-btn"
+                        aria-label="Back"
                     >
-                        <div
-                            style={{
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                                marginBottom: 14,
-                            }}
-                        >
-                            <h3 style={{ fontSize: '15px', fontWeight: 700 }}>
-                                RevClo Standard Size Guide
-                            </h3>
-                            <button type="button" onClick={() => setSizeGuideOpen(false)}>
-                                <X size={18} />
-                            </button>
-                        </div>
-                        <p style={{ fontSize: '12.5px', color: 'var(--text-secondary)', marginBottom: 12 }}>
-                            Include accurate flat measurements so buyers can shop with confidence.
+                        <ArrowLeft size={17} />
+                    </button>
+                    <div>
+                        <h1 className="revclo-page-title">
+                            {step === 1
+                                ? 'Add Media & Details'
+                                : step === 2
+                                  ? 'Category, Brand & Size'
+                                  : 'Review & Final Price'}
+                        </h1>
+                        <p className="text-[11px] text-[#7C7C7C] hidden sm:block">
+                            3-Step AI Guided Listing • Real-Time Google Price Discovery
                         </p>
-                        <div
-                            style={{
-                                display: 'grid',
-                                gridTemplateColumns: '1fr 1fr 1fr',
-                                gap: 8,
-                                fontSize: '12px',
-                                background: '#ffffff',
-                                padding: 12,
-                                borderRadius: 10,
-                                border: '1px solid var(--border-sand)',
+                    </div>
+                </div>
+
+                {/* Step Progress Indicator */}
+                <div className="flex items-center gap-2">
+                    {([1, 2, 3] as const).map((s) => (
+                        <button
+                            key={s}
+                            type="button"
+                            onClick={() => {
+                                if (s < step || images.length > 0) setStep(s);
                             }}
+                            className={`h-8 px-3 rounded-full text-[12px] font-semibold flex items-center gap-1.5 transition-all ${
+                                step === s
+                                    ? 'bg-[#161616] text-white'
+                                    : step > s
+                                      ? 'bg-[#E5F6DF] text-[#007A00] border border-[#B0C988]'
+                                      : 'bg-white text-[#7C7C7C] border border-[#DCD6CD]'
+                            }`}
                         >
-                            <strong>Size</strong>
-                            <strong>Bust / Chest</strong>
-                            <strong>Waist</strong>
-                            <span>XS</span>
-                            <span>31 - 32 in</span>
-                            <span>24 - 25 in</span>
-                            <span>S</span>
-                            <span>33 - 34 in</span>
-                            <span>26 - 27 in</span>
-                            <span>M</span>
-                            <span>35 - 36 in</span>
-                            <span>28 - 29 in</span>
-                            <span>Large</span>
-                            <span>37 - 39 in</span>
-                            <span>30 - 32 in</span>
+                            {step > s ? <Check size={12} /> : <span>{s}</span>}
+                            <span className="hidden md:inline">
+                                {s === 1 ? 'Media' : s === 2 ? 'Attributes' : 'Price & Publish'}
+                            </span>
+                        </button>
+                    ))}
+                </div>
+            </header>
+
+            <main className="revclo-main-canvas px-4 md:px-0 pt-2">
+                {errorMessage && (
+                    <div className="mb-4 p-3.5 rounded-xl bg-[#FEF2F2] border border-[#FECACA] text-[#B91C1C] text-[13px] font-medium flex items-center justify-between">
+                        <span>{errorMessage}</span>
+                        <button
+                            type="button"
+                            onClick={() => setErrorMessage(null)}
+                            className="text-[#B91C1C]"
+                        >
+                            <X size={15} />
+                        </button>
+                    </div>
+                )}
+
+                {!currentUser && (
+                    <div className="mb-5 p-3.5 rounded-2xl bg-[#FFFBEB] border border-[#FDE68A] flex items-center justify-between gap-3">
+                        <div className="text-[12px] text-[#92400E]">
+                            <strong>Heads up:</strong> You can scan your garment and get a live Google price valuation right now. Sign in before clicking Publish in Step 3.
+                        </div>
+                        <Link
+                            href="/login?callbackUrl=/sell"
+                            className="shrink-0 px-3.5 py-1.5 rounded-full bg-[#161616] text-white text-[12px] font-semibold"
+                        >
+                            Sign In
+                        </Link>
+                    </div>
+                )}
+
+                <div className="revclo-desktop-split">
+                    {/* LEFT COLUMN ON DESKTOP: Live Interactive Preview & Google Market Valuation */}
+                    <div className="hidden lg:flex flex-col gap-5 sticky top-24">
+                        <div className="bg-white rounded-[20px] border border-[#DCD6CD] p-5 shadow-sm">
+                            <div className="flex items-center justify-between mb-3">
+                                <span className="text-[11px] font-bold uppercase tracking-wider text-[#7C7C7C]">
+                                    LIVE LISTING PREVIEW
+                                </span>
+                                <span className="px-2.5 py-1 rounded-full bg-[#F2FEDF] text-[#007A00] border border-[#B0C988] text-[11px] font-semibold">
+                                    {condition}
+                                </span>
+                            </div>
+
+                            <div className="aspect-[4/5] w-full rounded-[16px] overflow-hidden bg-[#F7F6F3] border border-[#E6E3DD] flex items-center justify-center relative mb-4">
+                                {images[0] ? (
+                                    <img
+                                        src={images[0]}
+                                        alt={title || 'Preview'}
+                                        className="w-full h-full object-cover"
+                                    />
+                                ) : (
+                                    <div className="text-center p-6 text-[#8C8C8C]">
+                                        <Camera size={36} className="mx-auto mb-2 opacity-50" />
+                                        <p className="text-[13px] font-medium">
+                                            Scan or upload garment photos to preview your listing card
+                                        </p>
+                                    </div>
+                                )}
+                                {agentReport?.trustScore && (
+                                    <span className="absolute top-3 left-3 px-2.5 py-1 rounded-lg bg-[#361C15] text-white text-[11px] font-bold">
+                                        {agentReport.trustScore}% AI Verified
+                                    </span>
+                                )}
+                            </div>
+
+                            <div className="flex items-start justify-between gap-3">
+                                <div>
+                                    <p className="text-[12px] font-semibold uppercase text-[#7C7C7C]">
+                                        {brand || 'BRAND'} • Size {size || 'S'}
+                                    </p>
+                                    <h3 className="text-[17px] font-bold text-[#161616] mt-0.5">
+                                        {title || 'Untitled Archive Piece'}
+                                    </h3>
+                                    <p className="text-[12px] text-[#5E5E5E] mt-1 line-clamp-2">
+                                        {description || 'Add photos or description to preview details.'}
+                                    </p>
+                                </div>
+                                <div className="text-right shrink-0">
+                                    <div className="text-[20px] font-extrabold text-[#161616]">
+                                        ₹{(price || 0).toLocaleString('en-IN')}
+                                    </div>
+                                    {realRetailPrice > 0 && (
+                                        <div className="text-[11px] text-[#8C8C8C] line-through">
+                                            MRP ₹{realRetailPrice.toLocaleString('en-IN')}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {agentReport && (
+                            <div className="bg-white rounded-[20px] border border-[#C7DDF4] p-5 shadow-sm">
+                                <div className="flex items-center justify-between mb-2">
+                                    <span className="inline-flex items-center gap-1.5 text-[12px] font-bold text-[#0F62FE]">
+                                        <Globe size={14} />
+                                        Supabase Google Price Agent
+                                    </span>
+                                    <span className="text-[11px] font-semibold text-[#007A00] bg-[#E5F6DF] px-2 py-0.5 rounded-full">
+                                        Live Market Verified
+                                    </span>
+                                </div>
+                                <p className="text-[12px] text-[#434343] mb-3">
+                                    Real Retail Price on Google:{' '}
+                                    <strong>
+                                        ₹{agentReport.realRetailPrice.toLocaleString('en-IN')}
+                                    </strong>{' '}
+                                    • Optimal Resale Range: ₹
+                                    {agentReport.resaleLow.toLocaleString('en-IN')} – ₹
+                                    {agentReport.resaleHigh.toLocaleString('en-IN')}
+                                </p>
+                                <div className="flex flex-col gap-1.5">
+                                    {agentReport.googleSources.slice(0, 3).map((src, idx) => (
+                                        <a
+                                            key={idx}
+                                            href={src.url}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="flex items-center justify-between p-2 rounded-lg bg-[#F5F9FF] hover:bg-[#EBF3FF] text-[11px] text-[#161616] transition-colors"
+                                        >
+                                            <span className="truncate max-w-[240px]">
+                                                <strong>{src.platform}:</strong> {src.title}
+                                            </span>
+                                            <span className="font-bold text-[#0F62FE] shrink-0 ml-2 flex items-center gap-1">
+                                                ₹{(src.price || 0).toLocaleString('en-IN')}
+                                                <ExternalLink size={10} />
+                                            </span>
+                                        </a>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* RIGHT COLUMN (AND MAIN MOBILE FLOW): 3-Step Figma Wizard */}
+                    <div className="flex flex-col gap-3">
+                        {/* ==================== STEP 1: MEDIA, AI PRICE BANNER, CONDITION & DETAILS ==================== */}
+                        {step === 1 && (
+                            <>
+                                {/* Add Media Card (Figma 263:11620 Empty vs 263:11704 Uploaded) */}
+                                <section className="bg-white rounded-[16px] p-4 border border-[#E6E6E6]">
+                                    <div className="flex items-start justify-between gap-2 mb-3">
+                                        <div>
+                                            <h2 className="text-[14px] font-semibold text-[#161616]">
+                                                Add Media
+                                            </h2>
+                                            <p className="text-[12px] text-[#6F6F6F]">
+                                                Add photos briefly showing the product
+                                            </p>
+                                        </div>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => setScannerOpen(true)}
+                                            className="px-3 py-1.5 rounded-full bg-[#161616] hover:bg-[#292929] text-white text-[11px] font-semibold inline-flex items-center gap-1.5 shrink-0"
+                                        >
+                                            <Camera size={13} className="text-[#78A9FF]" />
+                                            Guided AI Scan
+                                        </button>
+                                    </div>
+
+                                    {images.length === 0 ? (
+                                        /* Empty Media Dropzone matching Figma 263:11620 */
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                            <button
+                                                type="button"
+                                                onClick={() => setScannerOpen(true)}
+                                                className="h-[132px] rounded-[12px] border-2 border-dashed border-[#4589FF] bg-[#F5F9FF] hover:bg-[#EBF3FF] flex flex-col items-center justify-center gap-1.5 p-3 transition-all"
+                                            >
+                                                <div className="w-9 h-9 rounded-full bg-[#4589FF] text-white flex items-center justify-center">
+                                                    <Camera size={18} />
+                                                </div>
+                                                <span className="text-[12px] font-semibold text-[#161616]">
+                                                    Real-Time Guided Camera
+                                                </span>
+                                                <span className="text-[11px] text-[#525252]">
+                                                    Front • Back • Label • Google Price
+                                                </span>
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                onClick={() => fileInputRef.current?.click()}
+                                                className="h-[132px] rounded-[12px] border border-dashed border-[#C6C6C6] bg-[#FAFAFA] hover:bg-[#F2F2F2] flex flex-col items-center justify-center gap-1.5 p-3 transition-all"
+                                            >
+                                                <div className="w-9 h-9 rounded-full bg-[#ECECEC] text-[#161616] flex items-center justify-center">
+                                                    <Upload size={17} />
+                                                </div>
+                                                <span className="text-[12px] font-semibold text-[#161616]">
+                                                    Upload from Device
+                                                </span>
+                                                <span className="text-[11px] text-[#6F6F6F]">
+                                                    Select up to 6 photos (JPG, PNG)
+                                                </span>
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        /* Uploaded Media Strip matching Figma 263:11704 */
+                                        <div className="flex gap-2.5 overflow-x-auto no-scrollbar pb-1">
+                                            <button
+                                                type="button"
+                                                onClick={() => fileInputRef.current?.click()}
+                                                className="w-[86px] h-[86px] rounded-[10px] border border-dashed border-[#A8A8A8] bg-[#F8F8F8] shrink-0 flex flex-col items-center justify-center gap-1 text-[#525252]"
+                                            >
+                                                <Plus size={18} />
+                                                <span className="text-[10px] font-medium">
+                                                    Add More
+                                                </span>
+                                            </button>
+
+                                            {images.map((img, idx) => (
+                                                <div
+                                                    key={idx}
+                                                    className="relative w-[86px] h-[86px] rounded-[10px] overflow-hidden border border-[#DCD6CD] shrink-0 bg-[#F4F4F4]"
+                                                >
+                                                    <img
+                                                        src={img}
+                                                        alt={`Upload ${idx + 1}`}
+                                                        className="w-full h-full object-cover"
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => removeImage(idx)}
+                                                        aria-label="Remove image"
+                                                        className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/70 text-white flex items-center justify-center"
+                                                    >
+                                                        <X size={11} />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </section>
+
+                                {/* Blue AI Suggested Price Banner (Figma 263:11620 Empty vs 263:11704 Uploaded) */}
+                                <section className="rounded-[14px] p-3.5 bg-gradient-to-r from-[#EBF4FF] via-[#F2F8FF] to-[#E5F0FF] border border-[#B8D4F8]">
+                                    {agentScanning ? (
+                                        <div className="flex items-center gap-2.5 text-[#0F62FE] text-[13px] font-semibold">
+                                            <Loader2 size={16} className="animate-spin" />
+                                            <span>
+                                                Supabase Google Price Agent scanning live Indian retail & resale prices...
+                                            </span>
+                                        </div>
+                                    ) : images.length === 0 ? (
+                                        <div className="flex items-center justify-between gap-2">
+                                            <div className="flex items-center gap-2 text-[12px] font-medium text-[#1E3A8A]">
+                                                <Sparkles size={15} className="text-[#0F62FE] shrink-0" />
+                                                <span>
+                                                    Upload media to get best price suggested for your piece
+                                                </span>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => setScannerOpen(true)}
+                                                className="text-[11px] font-bold text-[#0F62FE] underline shrink-0"
+                                            >
+                                                Scan Now
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="flex items-center justify-between gap-3 flex-wrap">
+                                            <div className="flex items-baseline gap-2">
+                                                <span className="text-[20px] font-extrabold text-[#161616]">
+                                                    ₹{(price || 499).toLocaleString('en-IN')}
+                                                </span>
+                                                <span className="text-[12px] font-medium text-[#525252]">
+                                                    Best price for the item
+                                                </span>
+                                            </div>
+
+                                            <div className="flex items-center gap-2">
+                                                {realRetailPrice > 0 && (
+                                                    <span className="px-2.5 py-1 rounded-full bg-white/90 border border-[#B8D4F8] text-[11px] font-semibold text-[#0F62FE]">
+                                                        Google MRP: ₹{realRetailPrice.toLocaleString('en-IN')}
+                                                    </span>
+                                                )}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => runPriceAgent(images)}
+                                                    className="px-2.5 py-1 rounded-full bg-[#161616] text-white text-[11px] font-semibold inline-flex items-center gap-1"
+                                                >
+                                                    <Sparkles size={11} />
+                                                    Re-scan
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </section>
+
+                                {/* 5-Stop Condition Selector Card (Figma 263:11704) */}
+                                <section className="bg-white rounded-[16px] p-4 border border-[#E6E6E6]">
+                                    <div className="flex items-center justify-between mb-1">
+                                        <span className="text-[14px] font-semibold text-[#161616]">
+                                            Condition
+                                        </span>
+                                        <span className="text-[11px] text-[#6F6F6F]">
+                                            {images.length > 0
+                                                ? `Based on ${images.length} photo${images.length > 1 ? 's' : ''} analyzed`
+                                                : 'Select garment condition'}
+                                        </span>
+                                    </div>
+
+                                    <div className="mt-3 mb-2">
+                                        <span className="inline-block px-3 py-1 rounded-lg bg-[#E5F6DF] text-[#007A00] border border-[#B0C988] text-[12px] font-bold">
+                                            {condition}
+                                        </span>
+                                    </div>
+
+                                    <p className="text-[12px] text-[#525252] leading-relaxed mb-4">
+                                        {CONDITION_DESCRIPTIONS[condition]}
+                                    </p>
+
+                                    {/* Interactive Segmented Slider Track */}
+                                    <div className="relative pt-1 pb-2">
+                                        <div className="h-1.5 rounded-full bg-[#E5E5E5] relative">
+                                            <div
+                                                className="position absolute left-0 top-0 bottom-0 rounded-full bg-[#4589FF] transition-all"
+                                                style={{
+                                                    width: `${((conditionIndex + 1) / CONDITIONS.length) * 100}%`,
+                                                }}
+                                            />
+                                        </div>
+                                        <div className="grid grid-cols-4 gap-1.5 mt-3">
+                                            {CONDITIONS.map((c) => {
+                                                const active = condition === c;
+                                                return (
+                                                    <button
+                                                        key={c}
+                                                        type="button"
+                                                        onClick={() => setCondition(c)}
+                                                        className={`py-2 px-1 rounded-lg text-[11px] font-semibold border transition-all ${
+                                                            active
+                                                                ? 'bg-[#161616] text-white border-[#161616]'
+                                                                : 'bg-[#F8F8F8] text-[#525252] border-[#E0E0E0] hover:border-[#161616]'
+                                                        }`}
+                                                    >
+                                                        {c}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                </section>
+
+                                {/* Product Title & Active Toggle (Figma 263:11620 & 263:11704) */}
+                                <section className="bg-white rounded-[16px] p-4 border border-[#E6E6E6] flex flex-col gap-3.5">
+                                    <div>
+                                        <label className="block text-[11px] font-medium text-[#6F6F6F] mb-1">
+                                            Product Title
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={title}
+                                            onChange={(e) => setTitle(e.target.value)}
+                                            placeholder="Enter Product Title"
+                                            className="w-full text-[14px] font-semibold text-[#161616] placeholder:text-[#A8A8A8] pb-2 border-b border-[#E6E6E6] focus:border-[#161616] outline-none"
+                                        />
+                                    </div>
+
+                                    <div className="flex items-center justify-between pt-1">
+                                        <div>
+                                            <div className="text-[11px] text-[#6F6F6F]">
+                                                Product Status
+                                            </div>
+                                            <div className="text-[13px] font-semibold text-[#161616]">
+                                                {activeStatus ? 'Active' : 'Draft / Hidden'}
+                                            </div>
+                                        </div>
+
+                                        <button
+                                            type="button"
+                                            role="switch"
+                                            aria-checked={activeStatus}
+                                            onClick={() => setActiveStatus((s) => !s)}
+                                            className={`w-11 h-6 rounded-full p-0.5 transition-colors relative ${
+                                                activeStatus ? 'bg-[#161616]' : 'bg-[#C6C6C6]'
+                                            }`}
+                                        >
+                                            <span
+                                                className={`block w-5 h-5 rounded-full bg-white transition-transform ${
+                                                    activeStatus ? 'translate-x-5' : 'translate-x-0'
+                                                }`}
+                                            />
+                                        </button>
+                                    </div>
+                                </section>
+
+                                {/* Product Description (Figma 263:11620 & 263:11704) */}
+                                <section className="bg-white rounded-[16px] p-4 border border-[#E6E6E6]">
+                                    <label className="block text-[11px] font-medium text-[#6F6F6F] mb-1.5">
+                                        Product Description
+                                    </label>
+                                    <textarea
+                                        rows={3}
+                                        value={description}
+                                        onChange={(e) => setDescription(e.target.value)}
+                                        placeholder="Enter Product Description (fabric, fit, measurements, flaws if any)..."
+                                        className="w-full text-[13px] text-[#161616] placeholder:text-[#A8A8A8] leading-relaxed outline-none resize-y"
+                                    />
+                                </section>
+                            </>
+                        )}
+
+                        {/* ==================== STEP 2: CATEGORY, SUB-CATEGORY, BRAND & SIZE (Figma 263:12180 & 263:12644) ==================== */}
+                        {step === 2 && (
+                            <>
+                                {/* Compact Media Strip + Blue Price Banner */}
+                                <section className="bg-white rounded-[16px] p-3.5 border border-[#E6E6E6] flex items-center gap-2.5 overflow-x-auto no-scrollbar">
+                                    <button
+                                        type="button"
+                                        onClick={() => fileInputRef.current?.click()}
+                                        className="w-14 h-14 rounded-lg border border-dashed border-[#A8A8A8] flex items-center justify-center shrink-0 text-[#525252]"
+                                    >
+                                        <Plus size={16} />
+                                    </button>
+                                    {images.map((img, i) => (
+                                        <img
+                                            key={i}
+                                            src={img}
+                                            alt=""
+                                            className="w-14 h-14 rounded-lg object-cover border border-[#E0E0E0] shrink-0"
+                                        />
+                                    ))}
+                                </section>
+
+                                <section className="rounded-[14px] p-3.5 bg-gradient-to-r from-[#EBF4FF] to-[#E5F0FF] border border-[#B8D4F8] flex items-center justify-between">
+                                    <div className="flex items-baseline gap-2">
+                                        <span className="text-[18px] font-extrabold text-[#161616]">
+                                            ₹{(price || 499).toLocaleString('en-IN')}
+                                        </span>
+                                        <span className="text-[12px] text-[#525252]">
+                                            Best price for the item
+                                        </span>
+                                    </div>
+                                    <span className="text-[11px] font-semibold text-[#0F62FE]">
+                                        AI Matched
+                                    </span>
+                                </section>
+
+                                {/* Category Row -> Opens Searchable Category Picker Sheet (Figma 263:11852) */}
+                                <button
+                                    type="button"
+                                    onClick={() => openPicker('category')}
+                                    className="w-full bg-white rounded-[16px] p-4 border border-[#E6E6E6] hover:border-[#161616] flex items-center justify-between text-left transition-all"
+                                >
+                                    <div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-[11px] text-[#6F6F6F]">
+                                                Category
+                                            </span>
+                                            <span className="px-2 py-0.5 rounded bg-[#E5F6DF] text-[#007A00] text-[9px] font-bold uppercase">
+                                                SUGGESTED
+                                            </span>
+                                        </div>
+                                        <div className="text-[14px] font-semibold text-[#161616] mt-0.5">
+                                            {department} &bull; {category || 'Select Category'}
+                                        </div>
+                                    </div>
+                                    <ChevronDown size={16} className="text-[#525252]" />
+                                </button>
+
+                                {/* Sub-Category Row -> Opens Searchable Sub-Category Picker Sheet (Figma 263:10861) */}
+                                <button
+                                    type="button"
+                                    onClick={() => openPicker('subCategory')}
+                                    className="w-full bg-white rounded-[16px] p-4 border border-[#E6E6E6] hover:border-[#161616] flex items-center justify-between text-left transition-all"
+                                >
+                                    <div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-[11px] text-[#6F6F6F]">
+                                                Sub-category
+                                            </span>
+                                            <span className="px-2 py-0.5 rounded bg-[#E5F6DF] text-[#007A00] text-[9px] font-bold uppercase">
+                                                SUGGESTED
+                                            </span>
+                                        </div>
+                                        <div className="text-[14px] font-semibold text-[#161616] mt-0.5">
+                                            {subCategory || 'Select Sub-Category'}
+                                        </div>
+                                    </div>
+                                    <ChevronDown size={16} className="text-[#525252]" />
+                                </button>
+
+                                {/* Brand Row -> Opens Searchable Brand Picker Sheet (Figma 263:9672) */}
+                                <button
+                                    type="button"
+                                    onClick={() => openPicker('brand')}
+                                    className="w-full bg-white rounded-[16px] p-4 border border-[#E6E6E6] hover:border-[#161616] flex items-center justify-between text-left transition-all"
+                                >
+                                    <div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-[11px] text-[#6F6F6F]">
+                                                Brand
+                                            </span>
+                                            <span className="px-2 py-0.5 rounded bg-[#E5F6DF] text-[#007A00] text-[9px] font-bold uppercase">
+                                                SUGGESTED
+                                            </span>
+                                        </div>
+                                        <div className="text-[14px] font-semibold text-[#161616] mt-0.5">
+                                            {brand || 'Select Brand'}
+                                        </div>
+                                    </div>
+                                    <ChevronDown size={16} className="text-[#525252]" />
+                                </button>
+
+                                {/* Horizontal Size Selector + Size Guide (Figma 263:12180 & 263:12644) */}
+                                <section className="bg-white rounded-[16px] p-4 border border-[#E6E6E6]">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <div>
+                                            <span className="text-[11px] text-[#6F6F6F] block">
+                                                Select Size
+                                            </span>
+                                            <span className="text-[14px] font-semibold text-[#161616]">
+                                                Size: {size}
+                                            </span>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => openPicker('sizeGuide')}
+                                            className="text-[12px] font-semibold text-[#161616] underline inline-flex items-center gap-1"
+                                        >
+                                            <Ruler size={13} />
+                                            Size Guide
+                                        </button>
+                                    </div>
+
+                                    <div className="flex items-center gap-1.5">
+                                        <button
+                                            type="button"
+                                            onClick={() => scrollSizes('left')}
+                                            className="w-8 h-9 rounded-lg border border-[#E0E0E0] flex items-center justify-center shrink-0 text-[#525252] hover:border-[#161616]"
+                                            aria-label="Scroll sizes left"
+                                        >
+                                            <ChevronLeft size={15} />
+                                        </button>
+
+                                        <div
+                                            ref={sizeScrollRef}
+                                            className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1 flex-1"
+                                        >
+                                            {REVCLO_SIZE_OPTIONS.map((sz) => {
+                                                const selected = size === sz;
+                                                return (
+                                                    <button
+                                                        key={sz}
+                                                        type="button"
+                                                        onClick={() => setSize(sz)}
+                                                        className={`h-9 px-3.5 rounded-lg text-[12px] font-semibold shrink-0 border transition-all ${
+                                                            selected
+                                                                ? 'bg-[#161616] text-white border-[#161616]'
+                                                                : 'bg-[#F8F8F8] text-[#393939] border-[#E0E0E0] hover:border-[#161616]'
+                                                        }`}
+                                                    >
+                                                        {sz}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => scrollSizes('right')}
+                                            className="w-8 h-9 rounded-lg border border-[#E0E0E0] flex items-center justify-center shrink-0 text-[#525252] hover:border-[#161616]"
+                                            aria-label="Scroll sizes right"
+                                        >
+                                            <ChevronRight size={15} />
+                                        </button>
+                                    </div>
+                                </section>
+                            </>
+                        )}
+
+                        {/* ==================== STEP 3: INLINE PRICE EDITING & FULL SUMMARY (Figma 263:13903 - 263:15757) ==================== */}
+                        {step === 3 && (
+                            <>
+                                {/* Editable Price Banner (Figma 263:13903 & 263:14431) */}
+                                <section className="rounded-[16px] p-4 bg-gradient-to-r from-[#EBF4FF] via-[#F0F7FF] to-[#E0EEFF] border-2 border-[#4589FF]">
+                                    <div className="flex items-center justify-between mb-1">
+                                        <span className="text-[11px] font-bold uppercase tracking-wider text-[#0F62FE]">
+                                            YOUR LISTING PRICE (TAP TO EDIT)
+                                        </span>
+                                        <button
+                                            type="button"
+                                            onClick={() => setEditingPrice((e) => !e)}
+                                            className="text-[12px] font-semibold text-[#0F62FE] inline-flex items-center gap-1"
+                                        >
+                                            <Edit3 size={13} />
+                                            {editingPrice ? 'Done' : 'Edit Price'}
+                                        </button>
+                                    </div>
+
+                                    <div className="flex items-baseline gap-2.5 mt-1">
+                                        <span className="text-[24px] font-extrabold text-[#161616]">
+                                            ₹
+                                        </span>
+                                        <input
+                                            type="number"
+                                            min={50}
+                                            max={500000}
+                                            value={price || ''}
+                                            onChange={(e) => setPrice(Number(e.target.value))}
+                                            onFocus={() => setEditingPrice(true)}
+                                            onBlur={() => setEditingPrice(false)}
+                                            className="w-[140px] bg-white px-3 py-1 rounded-lg border border-[#4589FF] text-[22px] font-extrabold text-[#161616] outline-none"
+                                        />
+                                        <span className="text-[12px] font-medium text-[#525252]">
+                                            Best price for the item
+                                        </span>
+                                    </div>
+
+                                    {realRetailPrice > 0 && (
+                                        <div className="mt-2.5 pt-2.5 border-t border-[#B8D4F8]/60 flex items-center justify-between text-[12px] text-[#1E3A8A]">
+                                            <span>
+                                                Google Retail Reference:{' '}
+                                                <strong>
+                                                    ₹{realRetailPrice.toLocaleString('en-IN')}
+                                                </strong>
+                                            </span>
+                                            <span>
+                                                Buyer saves{' '}
+                                                <strong>
+                                                    {Math.max(
+                                                        5,
+                                                        Math.round(
+                                                            ((realRetailPrice - price) /
+                                                                realRetailPrice) *
+                                                                100
+                                                        )
+                                                    )}
+                                                    %
+                                                </strong>
+                                            </span>
+                                        </div>
+                                    )}
+                                </section>
+
+                                {/* Full Read-Only Summary Cards with Quick Edit Links */}
+                                <section className="bg-white rounded-[16px] p-4 border border-[#E6E6E6] flex flex-col gap-3">
+                                    <div className="flex items-center justify-between border-b border-[#F0F0F0] pb-2.5">
+                                        <div>
+                                            <span className="text-[11px] text-[#6F6F6F] block">
+                                                Product Title
+                                            </span>
+                                            <span className="text-[14px] font-semibold text-[#161616]">
+                                                {title}
+                                            </span>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setStep(1)}
+                                            className="text-[12px] font-semibold text-[#0F62FE]"
+                                        >
+                                            Edit
+                                        </button>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-3 border-b border-[#F0F0F0] pb-2.5">
+                                        <div>
+                                            <span className="text-[11px] text-[#6F6F6F] block">
+                                                Category
+                                            </span>
+                                            <span className="text-[13px] font-semibold text-[#161616]">
+                                                {department} &bull; {category} ({subCategory})
+                                            </span>
+                                        </div>
+                                        <div>
+                                            <span className="text-[11px] text-[#6F6F6F] block">
+                                                Brand & Size
+                                            </span>
+                                            <span className="text-[13px] font-semibold text-[#161616]">
+                                                {brand} &bull; Size {size}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <span className="text-[11px] text-[#6F6F6F] block">
+                                                Condition & Visibility
+                                            </span>
+                                            <span className="text-[13px] font-semibold text-[#007A00]">
+                                                {condition} &bull;{' '}
+                                                {activeStatus ? 'Active on Feed' : 'Hidden Draft'}
+                                            </span>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setStep(2)}
+                                            className="text-[12px] font-semibold text-[#0F62FE]"
+                                        >
+                                            Change
+                                        </button>
+                                    </div>
+                                </section>
+                            </>
+                        )}
+
+                        {/* Bottom Action Buttons (Figma 263:11620, 263:12644, 263:13903) */}
+                        <div className="mt-3 flex items-center gap-3 pb-8">
+                            {step > 1 && (
+                                <button
+                                    type="button"
+                                    onClick={() => setStep((s) => (s - 1) as 1 | 2 | 3)}
+                                    className="flex-1 h-12 rounded-[12px] bg-[#E8E8E8] hover:bg-[#DCDCDC] text-[#161616] text-[14px] font-semibold transition-all"
+                                >
+                                    Back
+                                </button>
+                            )}
+
+                            {step < 3 ? (
+                                <button
+                                    type="button"
+                                    onClick={handleStepContinue}
+                                    className="flex-[2] h-12 rounded-[12px] bg-[#161616] hover:bg-black text-white text-[14px] font-semibold transition-all"
+                                >
+                                    Continue
+                                </button>
+                            ) : (
+                                <button
+                                    type="button"
+                                    disabled={submitting}
+                                    onClick={handlePublish}
+                                    className="flex-[2] h-12 rounded-[12px] bg-[#161616] hover:bg-black disabled:opacity-60 text-white text-[14px] font-semibold flex items-center justify-center gap-2 transition-all"
+                                >
+                                    {submitting ? (
+                                        <>
+                                            <Loader2 size={16} className="animate-spin" />
+                                            <span>Publishing to RevClo...</span>
+                                        </>
+                                    ) : (
+                                        <span>Done & Publish Listing</span>
+                                    )}
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>
+            </main>
+
+            {/* ==================== STEP 2 SEARCHABLE PICKER MODALS / BOTTOM SHEETS (Figma 263:9672, 263:10861, 263:11852) ==================== */}
+            {activeSheet && (
+                <div
+                    className="revclo-backdrop"
+                    onClick={() => setActiveSheet(null)}
+                >
+                    <div
+                        className="revclo-sheet p-5"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="w-10 h-1 rounded-full bg-[#CCCCCC] mx-auto mb-3 md:hidden" />
+
+                        <div className="flex items-center justify-between mb-3">
+                            <h3 className="text-[16px] font-bold text-[#161616]">
+                                {activeSheet === 'category'
+                                    ? 'Select Category'
+                                    : activeSheet === 'subCategory'
+                                      ? 'Select Sub-Category'
+                                      : activeSheet === 'brand'
+                                        ? 'Select Brand'
+                                        : 'RevClo Size Guide'}
+                            </h3>
+                            <button
+                                type="button"
+                                onClick={() => setActiveSheet(null)}
+                                className="w-8 h-8 rounded-full bg-[#F2F2F2] flex items-center justify-center"
+                            >
+                                <X size={15} />
+                            </button>
+                        </div>
+
+                        {activeSheet === 'sizeGuide' ? (
+                            <div className="overflow-y-auto max-h-[60vh]">
+                                <p className="text-[12px] text-[#5E5E5E] mb-3">
+                                    Standard Indian & UK body measurements (in inches) for secondhand garment grading:
+                                </p>
+                                <table className="w-full text-left border-collapse text-[12px]">
+                                    <thead>
+                                        <tr className="border-b border-[#DCD6CD] text-[#6F6F6F]">
+                                            <th className="py-2 font-semibold">Size</th>
+                                            <th className="py-2 font-semibold">UK</th>
+                                            <th className="py-2 font-semibold">Bust / Chest</th>
+                                            <th className="py-2 font-semibold">Waist</th>
+                                            <th className="py-2 font-semibold">Hip</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {REVCLO_SIZE_GUIDE.map((row) => (
+                                            <tr
+                                                key={row.size}
+                                                onClick={() => {
+                                                    setSize(row.size);
+                                                    setActiveSheet(null);
+                                                }}
+                                                className="border-b border-[#EFEFEF] hover:bg-[#F7F6F3] cursor-pointer"
+                                            >
+                                                <td className="py-2.5 font-bold text-[#161616]">
+                                                    {row.size}
+                                                </td>
+                                                <td className="py-2.5">{row.uk}</td>
+                                                <td className="py-2.5">{row.bust}</td>
+                                                <td className="py-2.5">{row.waist}</td>
+                                                <td className="py-2.5">{row.hip}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        ) : (
+                            <>
+                                {/* Search Input inside Sheet (Figma 263:9672 / 263:10861 / 263:11852) */}
+                                <div className="relative mb-3">
+                                    <Search
+                                        size={15}
+                                        className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#7C7C7C]"
+                                    />
+                                    <input
+                                        type="text"
+                                        value={sheetSearch}
+                                        onChange={(e) => setSheetSearch(e.target.value)}
+                                        placeholder={
+                                            activeSheet === 'category'
+                                                ? 'Search Category'
+                                                : activeSheet === 'subCategory'
+                                                  ? 'Search Sub-Category'
+                                                  : 'Search or type any Brand...'
+                                        }
+                                        className="w-full h-10 pl-10 pr-4 rounded-xl bg-white border border-[#DCD6CD] text-[13px] outline-none focus:border-[#161616]"
+                                    />
+                                </div>
+
+                                {/* Department Toggle inside Category Sheet (Figma 263:11852 WOMEN | MEN) */}
+                                {activeSheet === 'category' && (
+                                    <div className="grid grid-cols-2 gap-2 p-1 rounded-xl bg-[#ECECEC] mb-3">
+                                        {(['Women', 'Men'] as const).map((dept) => (
+                                            <button
+                                                key={dept}
+                                                type="button"
+                                                onClick={() => setDepartment(dept)}
+                                                className={`py-2 rounded-lg text-[12px] font-bold uppercase tracking-wider transition-all ${
+                                                    department === dept
+                                                        ? 'bg-white text-[#161616] shadow-sm'
+                                                        : 'text-[#6F6F6F]'
+                                                }`}
+                                            >
+                                                {dept}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {/* Radio List */}
+                                <div className="overflow-y-auto max-h-[50vh] divide-y divide-[#EFEFEF]">
+                                    {activeSheet === 'category' &&
+                                        filteredSheetCategories.map((cat) => {
+                                            const selected = category === cat;
+                                            const isSuggested =
+                                                agentReport?.category?.toLowerCase() ===
+                                                cat.toLowerCase();
+                                            return (
+                                                <button
+                                                    key={cat}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setCategory(cat);
+                                                        const firstSub =
+                                                            REVCLO_CATEGORIES_CATALOG[cat]
+                                                                ?.subCategories?.[0] || '';
+                                                        setSubCategory(firstSub);
+                                                        setActiveSheet(null);
+                                                    }}
+                                                    className="w-full py-3 px-1 flex items-center justify-between text-left hover:bg-[#F8F8F8]"
+                                                >
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-[14px] font-medium text-[#161616]">
+                                                            {cat}
+                                                        </span>
+                                                        {isSuggested && (
+                                                            <span className="px-2 py-0.5 rounded bg-[#E5F6DF] text-[#007A00] text-[9px] font-bold uppercase">
+                                                                SUGGESTED
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <span
+                                                        className={`w-5 h-5 rounded-full border flex items-center justify-center ${
+                                                            selected
+                                                                ? 'border-[#161616] bg-[#161616]'
+                                                                : 'border-[#A8A8A8]'
+                                                        }`}
+                                                    >
+                                                        {selected && (
+                                                            <span className="w-2 h-2 rounded-full bg-white" />
+                                                        )}
+                                                    </span>
+                                                </button>
+                                            );
+                                        })}
+
+                                    {activeSheet === 'subCategory' &&
+                                        filteredSheetSubCategories.map((sub) => {
+                                            const selected = subCategory === sub;
+                                            const isSuggested =
+                                                agentReport?.subCategory?.toLowerCase() ===
+                                                sub.toLowerCase();
+                                            return (
+                                                <button
+                                                    key={sub}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setSubCategory(sub);
+                                                        setActiveSheet(null);
+                                                    }}
+                                                    className="w-full py-3 px-1 flex items-center justify-between text-left hover:bg-[#F8F8F8]"
+                                                >
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-[14px] font-medium text-[#161616]">
+                                                            {sub}
+                                                        </span>
+                                                        {isSuggested && (
+                                                            <span className="px-2 py-0.5 rounded bg-[#E5F6DF] text-[#007A00] text-[9px] font-bold uppercase">
+                                                                SUGGESTED
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <span
+                                                        className={`w-5 h-5 rounded-full border flex items-center justify-center ${
+                                                            selected
+                                                                ? 'border-[#161616] bg-[#161616]'
+                                                                : 'border-[#A8A8A8]'
+                                                        }`}
+                                                    >
+                                                        {selected && (
+                                                            <span className="w-2 h-2 rounded-full bg-white" />
+                                                        )}
+                                                    </span>
+                                                </button>
+                                            );
+                                        })}
+
+                                    {activeSheet === 'brand' &&
+                                        filteredSheetBrands.map((b) => {
+                                            const selected = brand === b;
+                                            const isSuggested =
+                                                agentReport?.brand?.toLowerCase() ===
+                                                b.toLowerCase();
+                                            return (
+                                                <button
+                                                    key={b}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setBrand(b);
+                                                        setActiveSheet(null);
+                                                    }}
+                                                    className="w-full py-3 px-1 flex items-center justify-between text-left hover:bg-[#F8F8F8]"
+                                                >
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-[14px] font-medium text-[#161616]">
+                                                            {b}
+                                                        </span>
+                                                        {isSuggested && (
+                                                            <span className="px-2 py-0.5 rounded bg-[#E5F6DF] text-[#007A00] text-[9px] font-bold uppercase">
+                                                                SUGGESTED
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <span
+                                                        className={`w-5 h-5 rounded-full border flex items-center justify-center ${
+                                                            selected
+                                                                ? 'border-[#161616] bg-[#161616]'
+                                                                : 'border-[#A8A8A8]'
+                                                        }`}
+                                                    >
+                                                        {selected && (
+                                                            <span className="w-2 h-2 rounded-full bg-white" />
+                                                        )}
+                                                    </span>
+                                                </button>
+                                            );
+                                        })}
+                                </div>
+                            </>
+                        )}
+                    </div>
+                </div>
             )}
-        </div>
+        </>
     );
 }

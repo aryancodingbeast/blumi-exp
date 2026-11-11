@@ -1,72 +1,98 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, MoreVertical, Send } from 'lucide-react';
+import { useParams, useRouter } from 'next/navigation';
+import { ArrowLeft, Loader2, Send } from 'lucide-react';
 import { Conversation } from '@/types';
-import { getConversationById, sendConversationMessage } from '@/actions/marketplace';
-import { SEED_CONVERSATIONS } from '@/lib/revcloSeedData';
+import {
+    getConversationById,
+    sendConversationMessage,
+} from '@/actions/marketplace';
 
 export default function ChatThreadPage() {
     const params = useParams();
     const router = useRouter();
-    const convId = typeof params.id === 'string' ? params.id : 'conv-1';
+    const convId = String(params?.id || '');
 
-    const [conversation, setConversation] = useState<Conversation>(SEED_CONVERSATIONS[0]);
-    const [messageText, setMessageText] = useState<string>('');
-    const [sending, setSending] = useState<boolean>(false);
-    const bottomRef = useRef<HTMLDivElement>(null);
+    const [conversation, setConversation] = useState<Conversation | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [input, setInput] = useState('');
 
     useEffect(() => {
-        getConversationById(convId).then((res) => {
-            if (res) setConversation(res);
-        });
+        let active = true;
+        setLoading(true);
+        getConversationById(convId)
+            .then((c) => {
+                if (active) setConversation(c);
+            })
+            .finally(() => {
+                if (active) setLoading(false);
+            });
+        return () => {
+            active = false;
+        };
     }, [convId]);
-
-    useEffect(() => {
-        bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [conversation.messages.length]);
 
     const handleSend = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!messageText.trim() || sending) return;
+        if (!conversation || !input.trim()) return;
+        const text = input.trim();
+        setInput('');
 
-        const textToSend = messageText.trim();
-        setMessageText('');
-        setSending(true);
+        const now = new Date();
+        const label = `${String(now.getHours()).padStart(2, '0')}:${String(
+            now.getMinutes()
+        ).padStart(2, '0')}`;
 
-        const res = await sendConversationMessage(conversation.id, textToSend);
-        setConversation((prev) => ({
-            ...prev,
-            messages: [...prev.messages, res.message],
-            last_message: res.message.text,
-            last_message_time: res.message.timestamp_label,
-        }));
-        setSending(false);
+        setConversation({
+            ...conversation,
+            last_message: text,
+            last_message_time: label,
+            messages: [
+                ...conversation.messages,
+                {
+                    id: `msg-${Date.now()}`,
+                    conversation_id: conversation.id,
+                    sender: 'me',
+                    text,
+                    timestamp_label: label,
+                    created_at: now.toISOString(),
+                },
+            ],
+        });
+
+        await sendConversationMessage(conversation.id, text);
     };
 
+    if (loading) {
+        return (
+            <div className="py-24 flex flex-col items-center justify-center gap-3 text-[#5E5E5E]">
+                <Loader2 size={26} className="animate-spin text-[#532B21]" />
+                <p className="text-[13px]">Loading conversation...</p>
+            </div>
+        );
+    }
+
+    if (!conversation) {
+        return (
+            <div className="py-20 text-center">
+                <p className="text-[15px] font-bold">Conversation not found</p>
+                <Link
+                    href="/chat"
+                    className="mt-3 inline-block underline text-[13px]"
+                >
+                    Back to Messages
+                </Link>
+            </div>
+        );
+    }
+
     return (
-        <div
-            style={{
-                display: 'flex',
-                flexDirection: 'column',
-                height: '100vh',
-                background: 'var(--bg-canvas)',
-            }}
-        >
-            {/* Top Seller Bar matching Figma 139:2583 */}
-            <header
-                style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '12px 16px',
-                    background: '#ffffff',
-                    borderBottom: '1px solid var(--border-sand)',
-                }}
-            >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div className="max-w-[780px] mx-auto min-h-[calc(100vh-80px)] flex flex-col bg-white md:rounded-[22px] md:border md:border-[#DCD6CD] md:my-4 overflow-hidden">
+            {/* Header (Figma 326:12858) */}
+            <header className="p-4 border-b border-[#EFEFEF] flex items-center justify-between bg-[#FBF9F6]">
+                <div className="flex items-center gap-3">
                     <button
                         type="button"
                         onClick={() => router.push('/chat')}
@@ -75,276 +101,100 @@ export default function ChatThreadPage() {
                     >
                         <ArrowLeft size={17} />
                     </button>
-
-                    <Link
-                        href={`/creator/${conversation.participant_handle}`}
-                        style={{ display: 'flex', alignItems: 'center', gap: 10 }}
-                    >
-                        <img
-                            src={conversation.participant_avatar}
-                            alt={conversation.participant_name}
-                            style={{
-                                width: 38,
-                                height: 38,
-                                borderRadius: 999,
-                                objectFit: 'cover',
-                                border: '1px solid var(--border-card)',
-                            }}
-                        />
-                        <div>
-                            <div style={{ fontSize: '14px', fontWeight: 700 }}>
-                                {conversation.participant_name}
-                            </div>
-                            <div
-                                style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 5,
-                                    fontSize: '11px',
-                                    color: '#17a34a',
-                                    fontWeight: 500,
-                                }}
-                            >
-                                <span
-                                    style={{
-                                        width: 6,
-                                        height: 6,
-                                        borderRadius: 999,
-                                        background: '#17a34a',
-                                    }}
-                                />
-                                <span>Active now</span>
-                            </div>
-                        </div>
-                    </Link>
-                </div>
-
-                <button type="button" className="revclo-icon-btn" aria-label="More options">
-                    <MoreVertical size={16} />
-                </button>
-            </header>
-
-            {/* Sticky Dark Terracotta Product Context Banner matching Figma 139:2583 */}
-            <Link
-                href={`/product/${conversation.product_id}`}
-                style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: 12,
-                    padding: '10px 16px',
-                    background: 'var(--terracotta-950)',
-                    color: '#ffffff',
-                    borderBottom: '1px solid var(--terracotta-800)',
-                }}
-            >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
                     <img
-                        src={
-                            conversation.product_images[0] ||
-                            '/figma/14bdb6af-eb9e-4d33-ba53-2b0e83cb8918.png'
-                        }
-                        alt={conversation.product_title}
-                        style={{
-                            width: 40,
-                            height: 40,
-                            borderRadius: 8,
-                            objectFit: 'cover',
-                            border: '1px solid rgba(255,255,255,0.2)',
-                            flexShrink: 0,
-                        }}
+                        src={conversation.participant_avatar}
+                        alt={conversation.participant_name}
+                        className="w-10 h-10 rounded-full object-cover border border-[#CDC8BF]"
                     />
-                    <div style={{ minWidth: 0 }}>
-                        <div
-                            style={{
-                                fontSize: '12.5px',
-                                fontWeight: 600,
-                                whiteSpace: 'nowrap',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                            }}
-                        >
-                            {conversation.product_title}
-                        </div>
-                        <div style={{ fontSize: '11.5px', color: 'var(--terracotta-300)' }}>
-                            ₹{conversation.product_price.toLocaleString('en-IN')} •{' '}
-                            {conversation.product_size}
-                        </div>
+                    <div>
+                        <h1 className="text-[15px] font-bold text-[#161616]">
+                            {conversation.participant_name}
+                        </h1>
+                        <p className="text-[11px] text-[#007A00] font-medium">
+                            @{conversation.participant_handle} &bull; Active now
+                        </p>
                     </div>
                 </div>
+            </header>
 
-                <span
-                    style={{
-                        padding: '5px 10px',
-                        borderRadius: 8,
-                        background: 'rgba(255,255,255,0.12)',
-                        fontSize: '11px',
-                        fontWeight: 600,
-                        whiteSpace: 'nowrap',
-                    }}
-                >
-                    View item
+            {/* Attached Product Banner */}
+            <Link
+                href={`/product/${conversation.product_id}`}
+                className="p-3 bg-[#F7F6F3] border-b border-[#E6E3DD] flex items-center justify-between gap-3"
+            >
+                <div className="flex items-center gap-3 min-w-0">
+                    {conversation.product_images[0] && (
+                        <img
+                            src={conversation.product_images[0]}
+                            alt={conversation.product_title}
+                            className="w-12 h-12 rounded-lg object-cover border border-[#CDC8BF] shrink-0"
+                        />
+                    )}
+                    <div className="min-w-0">
+                        <p className="text-[13px] font-bold text-[#161616] truncate">
+                            {conversation.product_title}
+                        </p>
+                        <p className="text-[12px] font-semibold text-[#532B21]">
+                            ₹{conversation.product_price.toLocaleString('en-IN')}{' '}
+                            &bull; Size {conversation.product_size}
+                        </p>
+                    </div>
+                </div>
+                <span className="px-3 py-1.5 rounded-lg bg-white border border-[#DCD6CD] text-[11px] font-semibold text-[#161616] shrink-0">
+                    View Piece
                 </span>
             </Link>
 
-            {/* Messages Scroll Area */}
-            <div
-                style={{
-                    flex: 1,
-                    overflowY: 'auto',
-                    padding: '16px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 12,
-                }}
-            >
-                {/* Date Pill matching 139:2583 */}
-                <div style={{ textAlign: 'center', margin: '4px 0 8px' }}>
-                    <span
-                        style={{
-                            display: 'inline-block',
-                            padding: '4px 12px',
-                            borderRadius: 999,
-                            background: '#e5e2dc',
-                            color: 'var(--text-secondary)',
-                            fontSize: '11px',
-                            fontWeight: 600,
-                        }}
-                    >
-                        Wed, 21 Aug
-                    </span>
-                </div>
-
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
                 {conversation.messages.map((msg) => {
                     const isMe = msg.sender === 'me';
                     return (
                         <div
                             key={msg.id}
-                            style={{
-                                alignSelf: isMe ? 'flex-end' : 'flex-start',
-                                maxWidth: '78%',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                alignItems: isMe ? 'flex-end' : 'flex-start',
-                            }}
+                            className={`flex flex-col max-w-[78%] ${
+                                isMe
+                                    ? 'self-end items-end'
+                                    : 'self-start items-start'
+                            }`}
                         >
                             <div
-                                style={{
-                                    padding: '10px 14px',
-                                    borderRadius: isMe
-                                        ? '16px 16px 4px 16px'
-                                        : '16px 16px 16px 4px',
-                                    background: isMe ? 'var(--terracotta-920)' : '#f8f8f8',
-                                    color: isMe ? '#ffffff' : 'var(--text-ink)',
-                                    border: isMe
-                                        ? '1px solid var(--terracotta-800)'
-                                        : '1px solid var(--border-sand)',
-                                    fontSize: '13px',
-                                    lineHeight: 1.45,
-                                    boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
-                                }}
+                                className={`px-4 py-2.5 rounded-2xl text-[13px] leading-relaxed ${
+                                    isMe
+                                        ? 'bg-[#532B21] text-white rounded-br-sm'
+                                        : 'bg-[#F2F2F2] text-[#161616] rounded-bl-sm'
+                                }`}
                             >
                                 {msg.text}
                             </div>
-                            <span
-                                style={{
-                                    fontSize: '10px',
-                                    color: 'var(--text-muted)',
-                                    marginTop: 4,
-                                    padding: '0 4px',
-                                }}
-                            >
+                            <span className="text-[10px] text-[#8C8C8C] mt-1 px-1">
                                 {msg.timestamp_label}
                             </span>
                         </div>
                     );
                 })}
-                <div ref={bottomRef} />
             </div>
 
-            {/* Quick Offer Chips + Sticky Input Bar */}
-            <div
-                style={{
-                    background: '#ffffff',
-                    borderTop: '1px solid var(--border-sand)',
-                    padding: '10px 14px 16px',
-                }}
+            {/* Composer */}
+            <form
+                onSubmit={handleSend}
+                className="p-3.5 border-t border-[#EFEFEF] flex items-center gap-2.5 bg-[#FAFAFA]"
             >
-                <div
-                    className="no-scrollbar"
-                    style={{
-                        display: 'flex',
-                        gap: 6,
-                        overflowX: 'auto',
-                        marginBottom: 8,
-                    }}
+                <input
+                    type="text"
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    placeholder="Write a message..."
+                    className="flex-1 h-11 px-4 rounded-full bg-white border border-[#DCD6CD] text-[13px] outline-none focus:border-[#161616]"
+                />
+                <button
+                    type="submit"
+                    className="w-11 h-11 rounded-full bg-[#532B21] text-white flex items-center justify-center shrink-0"
+                    aria-label="Send"
                 >
-                    {[
-                        'Is this still available?',
-                        'Can you ship tomorrow?',
-                        'Would you take ₹450?',
-                        'Any flaws or stains?',
-                    ].map((quick) => (
-                        <button
-                            key={quick}
-                            type="button"
-                            onClick={() => setMessageText(quick)}
-                            style={{
-                                padding: '5px 10px',
-                                borderRadius: 999,
-                                background: 'var(--bg-card)',
-                                border: '1px solid var(--border-sand)',
-                                fontSize: '11px',
-                                color: 'var(--text-secondary)',
-                                whiteSpace: 'nowrap',
-                            }}
-                        >
-                            {quick}
-                        </button>
-                    ))}
-                </div>
-
-                <form
-                    onSubmit={handleSend}
-                    style={{ display: 'flex', alignItems: 'center', gap: 8 }}
-                >
-                    <input
-                        type="text"
-                        value={messageText}
-                        onChange={(e) => setMessageText(e.target.value)}
-                        placeholder="Message..."
-                        style={{
-                            flex: 1,
-                            height: 42,
-                            padding: '0 14px',
-                            borderRadius: 999,
-                            background: 'var(--bg-canvas)',
-                            border: '1px solid var(--border-sand)',
-                            fontSize: '13px',
-                            outline: 'none',
-                        }}
-                    />
-                    <button
-                        type="submit"
-                        disabled={!messageText.trim() || sending}
-                        style={{
-                            width: 42,
-                            height: 42,
-                            borderRadius: 999,
-                            background: messageText.trim()
-                                ? 'var(--terracotta-920)'
-                                : 'var(--border-card)',
-                            color: '#ffffff',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            transition: 'background 0.2s ease',
-                        }}
-                    >
-                        <Send size={16} />
-                    </button>
-                </form>
-            </div>
+                    <Send size={16} />
+                </button>
+            </form>
         </div>
     );
 }

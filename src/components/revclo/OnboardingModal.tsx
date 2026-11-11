@@ -5,17 +5,39 @@ import gsap from 'gsap';
 import { REVCLO_ASSETS } from '@/lib/revcloSeedData';
 
 interface OnboardingModalProps {
-    isOpen: boolean;
-    onClose: () => void;
+    isOpen?: boolean;
+    onClose?: () => void;
 }
 
 export default function OnboardingModal({ isOpen, onClose }: OnboardingModalProps) {
+    const [internalOpen, setInternalOpen] = useState(false);
     const [step, setStep] = useState<1 | 2>(1);
     const cardsContainerRef = useRef<HTMLDivElement>(null);
     const orbitRingRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        if (!isOpen) return;
+        if (isOpen !== undefined) return;
+        try {
+            const seen = localStorage.getItem('revclo_onboarded_v2');
+            if (!seen) setInternalOpen(true);
+        } catch {
+            // ignore
+        }
+    }, [isOpen]);
+
+    const effectiveOpen = isOpen !== undefined ? isOpen : internalOpen;
+    const handleClose = () => {
+        try {
+            localStorage.setItem('revclo_onboarded_v2', '1');
+        } catch {
+            // ignore
+        }
+        setInternalOpen(false);
+        onClose?.();
+    };
+
+    useEffect(() => {
+        if (!effectiveOpen) return;
 
         if (step === 1 && cardsContainerRef.current) {
             const cards = cardsContainerRef.current.querySelectorAll('.onboard-fan-card');
@@ -41,9 +63,9 @@ export default function OnboardingModal({ isOpen, onClose }: OnboardingModalProp
                 ease: 'none',
             });
         }
-    }, [isOpen, step]);
+    }, [effectiveOpen, step]);
 
-    if (!isOpen) return null;
+    if (!effectiveOpen) return null;
 
     return (
         <div
@@ -406,7 +428,7 @@ export default function OnboardingModal({ isOpen, onClose }: OnboardingModalProp
                     ) : (
                         <button
                             type="button"
-                            onClick={onClose}
+                            onClick={handleClose}
                             className="revclo-primary-btn"
                             style={{
                                 width: '100%',
@@ -421,7 +443,7 @@ export default function OnboardingModal({ isOpen, onClose }: OnboardingModalProp
 
                     <button
                         type="button"
-                        onClick={onClose}
+                        onClick={handleClose}
                         style={{
                             marginTop: 12,
                             fontSize: '12px',

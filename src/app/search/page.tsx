@@ -1,320 +1,484 @@
 'use client';
 
-import React, { Suspense, useEffect, useState } from 'react';
+import React, { Suspense, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
     ArrowLeft,
-    ChevronDown,
+    Loader2,
+    RotateCcw,
     Search,
     SlidersHorizontal,
     X,
 } from 'lucide-react';
-import { MarketplaceFilterState, Product } from '@/types';
-import { getMarketplaceProducts } from '@/actions/marketplace';
-import { SEED_PRODUCTS } from '@/lib/revcloSeedData';
+import { Product } from '@/types';
+import {
+    getMarketplaceProducts,
+    toggleProductLike,
+} from '@/actions/marketplace';
 import RevcloProductCard from '@/components/revclo/RevcloProductCard';
-import FilterSortDrawer from '@/components/revclo/FilterSortDrawer';
+import FilterSortDrawer, {
+    FilterSortState,
+} from '@/components/revclo/FilterSortDrawer';
+import BottomNavbar from '@/components/revclo/BottomNavbar';
+
+const INITIAL_FILTERS: FilterSortState = {
+    sortBy: 'trending',
+    category: 'All',
+    sizes: [],
+    conditions: [],
+    brands: [],
+    maxPrice: 50000,
+};
 
 function SearchCatalogContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
+    const initialQ = searchParams.get('q') || '';
+    const initialCat = searchParams.get('category') || 'All';
+    const initialSort =
+        (searchParams.get('sort') as FilterSortState['sortBy']) || 'trending';
 
-    const initialQ = searchParams.get('q') || 'Vintage sunglasses';
-    const initialCat = searchParams.get('category') || 'Glasses & Sunglasses';
-
-    const [query, setQuery] = useState<string>(initialQ);
-    const [products, setProducts] = useState<Product[]>(SEED_PRODUCTS);
-    const [isFilterOpen, setIsFilterOpen] = useState<boolean>(false);
-    const [activePills, setActivePills] = useState<string[]>([
-        initialCat,
-        'Prada',
-        'Versace',
-    ]);
-    const [filters, setFilters] = useState<MarketplaceFilterState>({
-        query: initialQ,
-        category: 'All',
-        brands: [],
-        sortBy: 'trending',
+    const [allProducts, setAllProducts] = useState<Product[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [query, setQuery] = useState(initialQ);
+    const [filterOpen, setFilterOpen] = useState(false);
+    const [filters, setFilters] = useState<FilterSortState>({
+        ...INITIAL_FILTERS,
+        category: initialCat,
+        sortBy: initialSort,
     });
 
     useEffect(() => {
-        let mounted = true;
-        getMarketplaceProducts(filters).then((res) => {
-            if (mounted) {
-                setProducts(res.length > 0 ? res : SEED_PRODUCTS);
-            }
-        });
-        return () => {
-            mounted = false;
-        };
-    }, [filters]);
+        setQuery(searchParams.get('q') || '');
+    }, [searchParams]);
 
-    const removePill = (pill: string) => {
-        setActivePills((prev) => prev.filter((p) => p !== pill));
+    useEffect(() => {
+        let active = true;
+        setLoading(true);
+        getMarketplaceProducts({ sortBy: 'trending' })
+            .then((items) => {
+                if (active) setAllProducts(items);
+            })
+            .finally(() => {
+                if (active) setLoading(false);
+            });
+        return () => {
+            active = false;
+        };
+    }, []);
+
+    const dynamicBrands = useMemo(() => {
+        const counts = new Map<string, number>();
+        for (const p of allProducts) {
+            if (p.brand) counts.set(p.brand, (counts.get(p.brand) || 0) + 1);
+        }
+        return Array.from(counts.entries())
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 12)
+            .map(([b]) => b);
+    }, [allProducts]);
+
+    const dynamicSizes = useMemo(() => {
+        const set = new Set<string>();
+        for (const p of allProducts) {
+            if (p.size) set.add(String(p.size));
+        }
+        return Array.from(set).slice(0, 8);
+    }, [allProducts]);
+
+    const filteredProducts = useMemo(() => {
+        let list = [...allProducts];
+
+        if (query.trim()) {
+            const terms = query
+                .trim()
+                .toLowerCase()
+                .split(/\s+/)
+                .filter(Boolean);
+            list = list.filter((p) => {
+                const hay = `${p.title} ${p.brand} ${p.category} ${p.sub_category || ''} ${p.description || ''} ${p.seller?.name || ''}`.toLowerCase();
+                return terms.every((t) => hay.includes(t));
+            });
+        }
+
+        if (filters.category !== 'All') {
+            list = list.filter(
+                (p) =>
+                    p.category.toLowerCase() ===
+                        filters.category.toLowerCase() ||
+                    p.sub_category?.toLowerCase() ===
+                        filters.category.toLowerCase()
+            );
+        }
+
+        if (filters.sizes.length > 0) {
+            const lower = filters.sizes.map((s) => s.toLowerCase());
+            list = list.filter((p) =>
+                lower.includes(String(p.size).toLowerCase())
+            );
+        }
+
+        if (filters.conditions.length > 0) {
+            const lower = filters.conditions.map((c) => c.toLowerCase());
+            list = list.filter((p) =>
+                lower.includes(String(p.condition).toLowerCase())
+            );
+        }
+
+        if (filters.brands.length > 0) {
+            const lower = filters.brands.map((b) => b.toLowerCase());
+            list = list.filter((p) => lower.includes(p.brand.toLowerCase()));
+        }
+
+        if (filters.maxPrice < 50000) {
+            list = list.filter((p) => p.price <= filters.maxPrice);
+        }
+
+        switch (filters.sortBy) {
+            case 'price_asc':
+                list.sort((a, b) => a.price - b.price);
+                break;
+            case 'price_desc':
+                list.sort((a, b) => b.price - a.price);
+                break;
+            case 'newest':
+                list.sort(
+                    (a, b) =>
+                        new Date(b.created_at).getTime() -
+                        new Date(a.created_at).getTime()
+                );
+                break;
+            case 'trust_score':
+                list.sort(
+                    (a, b) => (b.trust_score || 90) - (a.trust_score || 90)
+                );
+                break;
+            case 'trending':
+            default:
+                list.sort(
+                    (a, b) => (b.likes_count || 0) - (a.likes_count || 0)
+                );
+                break;
+        }
+
+        return list;
+    }, [allProducts, query, filters]);
+
+    const handleLikeToggle = async (productId: string, nextLiked: boolean) => {
+        setAllProducts((prev) =>
+            prev.map((p) =>
+                p.id === productId ? { ...p, is_liked: nextLiked } : p
+            )
+        );
+        try {
+            await toggleProductLike(productId);
+        } catch {
+            // ignore
+        }
     };
 
-    const clearAllPills = () => {
-        setActivePills([]);
+    const toggleArrayValue = (arr: string[], val: string) =>
+        arr.includes(val) ? arr.filter((x) => x !== val) : [...arr, val];
+
+    const resetAll = () => {
         setQuery('');
-        setFilters({
-            department: 'All',
-            category: 'All',
-            brands: [],
-            sizes: [],
-            sortBy: 'trending',
-        });
+        setFilters(INITIAL_FILTERS);
     };
 
     return (
-        <div style={{ minHeight: '100vh', paddingBottom: 32 }}>
-            {/* Top Search Bar matching Figma 98:3346 */}
-            <header className="revclo-top-bar">
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <>
+            <header className="revclo-page-header">
+                <div className="flex items-center gap-2.5 flex-1">
                     <button
                         type="button"
                         onClick={() => router.back()}
                         className="revclo-icon-btn"
-                        aria-label="Go back"
+                        aria-label="Back"
                     >
                         <ArrowLeft size={17} />
                     </button>
 
-                    <div className="revclo-search-pill" style={{ flex: 1 }}>
-                        <Search size={15} color="var(--text-muted)" />
+                    <div className="revclo-search-pill flex-1 max-w-[560px]">
+                        <Search size={15} />
                         <input
                             type="text"
                             value={query}
-                            onChange={(e) => {
-                                setQuery(e.target.value);
-                                setFilters((prev) => ({ ...prev, query: e.target.value }));
-                            }}
-                            placeholder="Search pieces, brands, closets..."
-                            style={{
-                                border: 'none',
-                                outline: 'none',
-                                background: 'transparent',
-                                width: '100%',
-                                fontSize: '13px',
-                                fontWeight: 500,
-                                color: 'var(--text-ink)',
-                            }}
+                            onChange={(e) => setQuery(e.target.value)}
+                            placeholder="Search corsets, tops, dresses, Hollister, Shein..."
+                            className="w-full bg-transparent border-none outline-none text-[13px] text-[#161616]"
                         />
                         {query && (
                             <button
                                 type="button"
-                                onClick={() => {
-                                    setQuery('');
-                                    setFilters((prev) => ({ ...prev, query: '' }));
-                                }}
+                                onClick={() => setQuery('')}
                                 aria-label="Clear search"
                             >
-                                <X size={14} color="var(--text-muted)" />
+                                <X size={14} />
                             </button>
                         )}
                     </div>
                 </div>
 
-                {/* Filter & Sort Trigger Row */}
-                <div
-                    className="no-scrollbar"
-                    style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 8,
-                        overflowX: 'auto',
-                        marginTop: 10,
-                    }}
+                <button
+                    type="button"
+                    onClick={() => setFilterOpen(true)}
+                    className="revclo-outline-btn text-[12px] shrink-0"
                 >
-                    <button
-                        type="button"
-                        onClick={() => setIsFilterOpen(true)}
-                        style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 6,
-                            padding: '6px 12px',
-                            borderRadius: 8,
-                            background: 'var(--terracotta-920)',
-                            color: '#ffffff',
-                            fontSize: '12px',
-                            fontWeight: 600,
-                            whiteSpace: 'nowrap',
-                        }}
-                    >
-                        <SlidersHorizontal size={13} />
-                        <span>All Filters {activePills.length > 0 ? `• ${activePills.length}` : ''}</span>
-                    </button>
-
-                    <button
-                        type="button"
-                        onClick={() => setIsFilterOpen(true)}
-                        style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 4,
-                            padding: '6px 12px',
-                            borderRadius: 8,
-                            background: '#ffffff',
-                            border: '1px solid var(--border-sand)',
-                            fontSize: '12px',
-                            fontWeight: 500,
-                            whiteSpace: 'nowrap',
-                        }}
-                    >
-                        <span>Sort</span>
-                        <ChevronDown size={13} />
-                    </button>
-
-                    <button
-                        type="button"
-                        onClick={() => setIsFilterOpen(true)}
-                        style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 4,
-                            padding: '6px 12px',
-                            borderRadius: 8,
-                            background: '#ffffff',
-                            border: '1px solid var(--border-sand)',
-                            fontSize: '12px',
-                            fontWeight: 500,
-                            whiteSpace: 'nowrap',
-                        }}
-                    >
-                        <span>Brand</span>
-                        <ChevronDown size={13} />
-                    </button>
-
-                    <button
-                        type="button"
-                        onClick={() => setIsFilterOpen(true)}
-                        style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 4,
-                            padding: '6px 12px',
-                            borderRadius: 8,
-                            background: '#ffffff',
-                            border: '1px solid var(--border-sand)',
-                            fontSize: '12px',
-                            fontWeight: 500,
-                            whiteSpace: 'nowrap',
-                        }}
-                    >
-                        <span>Size</span>
-                        <ChevronDown size={13} />
-                    </button>
-                </div>
+                    <SlidersHorizontal size={14} />
+                    <span>Filter & Sort</span>
+                </button>
             </header>
 
-            {/* ACTIVE FILTERS Section matching Figma 98:3346 */}
-            {activePills.length > 0 && (
-                <div style={{ padding: '12px 16px 6px' }}>
-                    <div
-                        style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            marginBottom: 8,
-                        }}
-                    >
-                        <span
-                            style={{
-                                fontSize: '10px',
-                                fontWeight: 700,
-                                letterSpacing: '0.06em',
-                                color: 'var(--text-muted)',
-                                textTransform: 'uppercase',
-                            }}
-                        >
-                            Active Filters
-                        </span>
-                        <button
-                            type="button"
-                            onClick={clearAllPills}
-                            style={{
-                                fontSize: '11px',
-                                fontWeight: 600,
-                                color: 'var(--terracotta-800)',
-                            }}
-                        >
-                            Clear all
-                        </button>
-                    </div>
-
-                    <div
-                        className="no-scrollbar"
-                        style={{ display: 'flex', gap: 8, overflowX: 'auto' }}
-                    >
-                        {activePills.map((pill) => (
-                            <span
-                                key={pill}
-                                style={{
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: 6,
-                                    padding: '5px 10px',
-                                    borderRadius: 999,
-                                    background: '#ffffff',
-                                    border: '1px solid var(--border-card)',
-                                    fontSize: '11.5px',
-                                    fontWeight: 500,
-                                    whiteSpace: 'nowrap',
-                                }}
+            <main className="revclo-main-canvas px-4 md:px-0 pt-2">
+                {/* Quick Filter Chips Row (Figma 93:3543) */}
+                <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-3 mb-4">
+                    {(
+                        [
+                            'All',
+                            'Tops',
+                            'Dresses',
+                            'Bottoms',
+                            'Outerwear',
+                            'Accessories',
+                        ] as const
+                    ).map((cat) => {
+                        const active = filters.category === cat;
+                        return (
+                            <button
+                                key={cat}
+                                type="button"
+                                onClick={() =>
+                                    setFilters((prev) => ({
+                                        ...prev,
+                                        category: cat,
+                                    }))
+                                }
+                                className={`px-3.5 py-1.5 rounded-full text-[12px] font-semibold shrink-0 border transition-all ${
+                                    active
+                                        ? 'bg-[#532B21] text-white border-[#532B21]'
+                                        : 'bg-white text-[#434343] border-[#DCD6CD] hover:border-[#532B21]'
+                                }`}
                             >
-                                <span>{pill}</span>
+                                {cat === 'All' ? 'All Categories' : cat}
+                            </button>
+                        );
+                    })}
+                </div>
+
+                <div className="revclo-desktop-sidebar-grid">
+                    {/* Desktop Persistent Left Filter Sidebar */}
+                    <aside className="hidden lg:flex flex-col gap-5 bg-white rounded-[20px] border border-[#DCD6CD] p-5 sticky top-24">
+                        <div className="flex items-center justify-between border-b border-[#EFEFEF] pb-3">
+                            <h2 className="text-[15px] font-bold text-[#161616]">
+                                Refine Catalog
+                            </h2>
+                            <button
+                                type="button"
+                                onClick={resetAll}
+                                className="text-[11px] font-semibold text-[#8B4736] inline-flex items-center gap-1"
+                            >
+                                <RotateCcw size={11} />
+                                Reset
+                            </button>
+                        </div>
+
+                        {/* Sort By */}
+                        <div>
+                            <h3 className="text-[11px] font-bold uppercase tracking-wider text-[#7C7C7C] mb-2">
+                                Sort By
+                            </h3>
+                            <div className="flex flex-col gap-1.5">
+                                {(
+                                    [
+                                        { id: 'trending', label: 'Trending First' },
+                                        { id: 'price_asc', label: 'Price: Low to High' },
+                                        { id: 'price_desc', label: 'Price: High to Low' },
+                                        { id: 'newest', label: 'Newest Arrivals' },
+                                        { id: 'trust_score', label: 'Highest AI Trust' },
+                                    ] as const
+                                ).map((opt) => (
+                                    <button
+                                        key={opt.id}
+                                        type="button"
+                                        onClick={() =>
+                                            setFilters((f) => ({
+                                                ...f,
+                                                sortBy: opt.id,
+                                            }))
+                                        }
+                                        className={`text-left px-3 py-1.5 rounded-lg text-[12px] font-medium transition-colors ${
+                                            filters.sortBy === opt.id
+                                                ? 'bg-[#161616] text-white font-semibold'
+                                                : 'text-[#434343] hover:bg-[#F7F6F3]'
+                                        }`}
+                                    >
+                                        {opt.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Sizes */}
+                        <div>
+                            <h3 className="text-[11px] font-bold uppercase tracking-wider text-[#7C7C7C] mb-2">
+                                Size
+                            </h3>
+                            <div className="flex flex-wrap gap-1.5">
+                                {dynamicSizes.map((sz) => {
+                                    const active = filters.sizes.includes(sz);
+                                    return (
+                                        <button
+                                            key={sz}
+                                            type="button"
+                                            onClick={() =>
+                                                setFilters((f) => ({
+                                                    ...f,
+                                                    sizes: toggleArrayValue(
+                                                        f.sizes,
+                                                        sz
+                                                    ),
+                                                }))
+                                            }
+                                            className={`px-3 py-1 rounded-lg text-[11px] font-semibold border ${
+                                                active
+                                                    ? 'bg-[#532B21] text-white border-[#532B21]'
+                                                    : 'bg-[#F7F6F3] text-[#161616] border-[#DCD6CD]'
+                                            }`}
+                                        >
+                                            {sz}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        {/* Brands */}
+                        <div>
+                            <h3 className="text-[11px] font-bold uppercase tracking-wider text-[#7C7C7C] mb-2">
+                                Brands & Closets
+                            </h3>
+                            <div className="flex flex-wrap gap-1.5">
+                                {dynamicBrands.map((b) => {
+                                    const active = filters.brands.includes(b);
+                                    return (
+                                        <button
+                                            key={b}
+                                            type="button"
+                                            onClick={() =>
+                                                setFilters((f) => ({
+                                                    ...f,
+                                                    brands: toggleArrayValue(
+                                                        f.brands,
+                                                        b
+                                                    ),
+                                                }))
+                                            }
+                                            className={`px-2.5 py-1 rounded-lg text-[11px] font-medium border ${
+                                                active
+                                                    ? 'bg-[#161616] text-white border-[#161616]'
+                                                    : 'bg-white text-[#434343] border-[#DCD6CD]'
+                                            }`}
+                                        >
+                                            {b}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    </aside>
+
+                    {/* Right Main Results Grid */}
+                    <div>
+                        <div className="flex items-center justify-between mb-3">
+                            <p className="text-[13px] font-medium text-[#5E5E5E]">
+                                Showing{' '}
+                                <strong className="text-[#161616]">
+                                    {filteredProducts.length}
+                                </strong>{' '}
+                                verified pieces
+                                {query ? ` for "${query}"` : ''}
+                            </p>
+                            {(query ||
+                                filters.category !== 'All' ||
+                                filters.sizes.length > 0 ||
+                                filters.brands.length > 0) && (
                                 <button
                                     type="button"
-                                    onClick={() => removePill(pill)}
-                                    aria-label={`Remove ${pill}`}
-                                    style={{
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        color: 'var(--text-muted)',
-                                    }}
+                                    onClick={resetAll}
+                                    className="text-[12px] font-semibold text-[#8B4736] underline"
                                 >
-                                    <X size={12} />
+                                    Clear all filters
                                 </button>
-                            </span>
-                        ))}
+                            )}
+                        </div>
+
+                        {loading ? (
+                            <div className="py-20 flex flex-col items-center justify-center gap-3 text-[#5E5E5E]">
+                                <Loader2
+                                    size={26}
+                                    className="animate-spin text-[#532B21]"
+                                />
+                                <p className="text-[13px]">
+                                    Searching live Supabase catalog...
+                                </p>
+                            </div>
+                        ) : filteredProducts.length === 0 ? (
+                            <div className="bg-white rounded-[20px] border border-[#DCD6CD] p-12 text-center">
+                                <h3 className="text-[16px] font-bold text-[#161616]">
+                                    No matching pieces found
+                                </h3>
+                                <p className="text-[13px] text-[#6F6F6F] mt-1 mb-4">
+                                    Try clearing a filter or searching for another brand or category.
+                                </p>
+                                <button
+                                    type="button"
+                                    onClick={resetAll}
+                                    className="px-5 py-2.5 rounded-full bg-[#161616] text-white text-[13px] font-semibold"
+                                >
+                                    Reset Search
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="revclo-product-grid !px-0">
+                                {filteredProducts.map((product) => (
+                                    <RevcloProductCard
+                                        key={product.id}
+                                        product={product}
+                                        showPristineBadge
+                                        onToggleLike={handleLikeToggle}
+                                    />
+                                ))}
+                            </div>
+                        )}
                     </div>
                 </div>
-            )}
-
-            {/* 2-Column Product Results Grid */}
-            <div style={{ paddingTop: 12 }}>
-                <div className="revclo-product-grid">
-                    {products.map((product) => (
-                        <RevcloProductCard
-                            key={product.id}
-                            product={product}
-                            badgeMode="trust"
-                        />
-                    ))}
-                </div>
-            </div>
+            </main>
 
             <FilterSortDrawer
-                isOpen={isFilterOpen}
-                onClose={() => setIsFilterOpen(false)}
-                initialFilters={filters}
-                onApply={(next) => {
-                    setFilters(next);
-                    const nextPills: string[] = [];
-                    if (next.category && next.category !== 'All') nextPills.push(next.category);
-                    if (next.brands) nextPills.push(...next.brands);
-                    if (next.sizes) nextPills.push(...next.sizes);
-                    if (nextPills.length > 0) setActivePills(nextPills);
-                }}
-                onClear={clearAllPills}
+                open={filterOpen}
+                onClose={() => setFilterOpen(false)}
+                value={filters}
+                onChange={setFilters}
+                totalResults={filteredProducts.length}
             />
-        </div>
+
+            <BottomNavbar
+                showFilterPill
+                onFilterClick={() => setFilterOpen(true)}
+            />
+        </>
     );
 }
 
 export default function SearchPage() {
     return (
-        <Suspense fallback={<div style={{ padding: 24 }}>Loading archive catalog...</div>}>
+        <Suspense
+            fallback={
+                <div className="py-24 text-center text-[13px] text-[#5E5E5E]">
+                    Loading catalog...
+                </div>
+            }
+        >
             <SearchCatalogContent />
         </Suspense>
     );

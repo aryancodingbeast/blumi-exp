@@ -6,10 +6,10 @@ import { Product } from '@/types';
 import { revalidatePath } from 'next/cache';
 import {
     createRevcloListing,
+    getCurrentUser,
     getMarketplaceProductById,
     getMarketplaceProducts,
 } from '@/actions/marketplace';
-import { DEFAULT_DEMO_USER } from '@/lib/revcloSeedData';
 
 export async function getProducts(filters?: {
     category?: string;
@@ -72,13 +72,8 @@ export async function createProduct(
               shop_id?: string;
           }
 ): Promise<{ success: boolean; data?: Product; product?: Product; error?: string }> {
-    let sellerId = DEFAULT_DEMO_USER.id;
-    try {
-        const session = await auth();
-        if (session?.user?.id) sellerId = session.user.id;
-    } catch {
-        // fallback to demo user
-    }
+    const currentUser = await getCurrentUser();
+    const sellerId = currentUser?.id;
 
     const parsed =
         productData instanceof FormData
@@ -150,14 +145,17 @@ export async function adminCreateProduct(
     }
     const res = await createRevcloListing({
         name: productDetails.title,
-        brand: 'QUILTED',
+        brand: 'RevClo Archive',
         price: productDetails.price,
         size: 'M',
         condition: 'Pristine',
-        category: 'Accessories',
+        category: 'Tops',
         description: productDetails.description,
         images: productDetails.imageUrls,
     });
+    if (!res.product) {
+        throw new Error(res.error || 'Failed to create product.');
+    }
     return res.product;
 }
 

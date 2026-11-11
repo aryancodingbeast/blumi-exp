@@ -1,25 +1,37 @@
 import React from 'react';
-import { getMarketplaceProducts, getConversations } from '@/actions/marketplace';
-import { SEED_BRANDS, SEED_COLLECTIONS, SEED_CREATORS } from '@/lib/revcloSeedData';
 import HomeMarketplace from '@/components/revclo/HomeMarketplace';
+import {
+    getBrands,
+    getCollections,
+    getConversations,
+    getCreators,
+    getCurrentUser,
+    getMarketplaceProducts,
+} from '@/actions/marketplace';
 
 export const dynamic = 'force-dynamic';
 
 export default async function HomePage() {
-    const [products, conversations] = await Promise.all([
-        getMarketplaceProducts({ sortBy: 'trending' }),
-        getConversations(),
-    ]);
+    const [products, brands, collections, creators, conversations, currentUser] =
+        await Promise.all([
+            getMarketplaceProducts({ sortBy: 'trending' }),
+            getBrands(),
+            getCollections(),
+            getCreators(),
+            getConversations('all'),
+            getCurrentUser(),
+        ]);
 
-    const unreadCount = conversations.reduce((acc, c) => acc + (c.unread_count || 0), 0);
+    const unreadCount = conversations.reduce((sum, c) => sum + c.unread_count, 0);
 
     return (
         <HomeMarketplace
             initialProducts={products}
-            brands={SEED_BRANDS}
-            collections={SEED_COLLECTIONS}
-            creators={SEED_CREATORS}
+            brands={brands}
+            collections={collections}
+            creators={creators}
             unreadChatsCount={unreadCount}
+            currentUser={currentUser}
         />
     );
 }

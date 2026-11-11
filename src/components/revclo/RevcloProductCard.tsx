@@ -9,23 +9,25 @@ import { toggleProductLike } from '@/actions/marketplace';
 interface RevcloProductCardProps {
     product: Product;
     badgeMode?: 'trust' | 'condition' | 'none';
+    showPristineBadge?: boolean;
     showEditButton?: boolean;
     onEditClick?: (product: Product) => void;
+    onToggleLike?: (productId: string, nextLiked: boolean) => void | Promise<void>;
 }
 
 export default function RevcloProductCard({
     product,
     badgeMode = 'trust',
+    showPristineBadge = false,
     showEditButton = false,
     onEditClick,
+    onToggleLike,
 }: RevcloProductCardProps) {
     const [liked, setLiked] = useState<boolean>(Boolean(product.is_liked));
     const [animating, setAnimating] = useState(false);
 
     const primaryImage =
-        product.images && product.images.length > 0
-            ? product.images[0]
-            : '/figma/14bdb6af-eb9e-4d33-ba53-2b0e83cb8918.png';
+        product.images && product.images.length > 0 ? product.images[0] : '';
 
     const handleLike = async (e: React.MouseEvent) => {
         e.preventDefault();
@@ -38,6 +40,10 @@ export default function RevcloProductCard({
         setLiked(next);
         setAnimating(true);
         setTimeout(() => setAnimating(false), 260);
+        if (onToggleLike) {
+            await onToggleLike(product.id, next);
+            return;
+        }
         try {
             await toggleProductLike(product.id);
         } catch {
@@ -46,19 +52,25 @@ export default function RevcloProductCard({
     };
 
     const trustScore = product.trust_score || 92;
+    const effectiveBadgeMode = showPristineBadge ? 'condition' : badgeMode;
 
     return (
         <Link href={`/product/${product.id}`} className="revclo-product-card">
             <div className="revclo-card-media">
-                <img
-                    src={primaryImage}
-                    alt={product.name}
-                    className="revclo-card-img"
-                    loading="lazy"
-                />
+                {primaryImage && (
+                    <img
+                        src={primaryImage}
+                        alt={product.title || product.name}
+                        className="revclo-card-img"
+                        loading="lazy"
+                    />
+                )}
 
-                {badgeMode === 'trust' && (
-                    <span className="revclo-trust-pill" title={`AI Trust Score: ${trustScore}/100`}>
+                {effectiveBadgeMode === 'trust' && (
+                    <span
+                        className="revclo-trust-pill"
+                        title={`AI Trust Score: ${trustScore}/100`}
+                    >
                         <span>{trustScore}</span>
                         <svg
                             width="11"
@@ -75,14 +87,22 @@ export default function RevcloProductCard({
                     </span>
                 )}
 
-                {badgeMode === 'condition' && (
-                    <span className="revclo-pristine-pill">{product.condition || 'Pristine'}</span>
+                {effectiveBadgeMode === 'condition' && (
+                    <span className="revclo-pristine-pill">
+                        {product.condition || 'Pristine'}
+                    </span>
                 )}
 
                 <button
                     type="button"
                     onClick={handleLike}
-                    aria-label={showEditButton ? 'Edit listing' : liked ? 'Unlike item' : 'Save item'}
+                    aria-label={
+                        showEditButton
+                            ? 'Edit listing'
+                            : liked
+                              ? 'Unlike item'
+                              : 'Save item'
+                    }
                     className={`revclo-heart-btn ${liked && !showEditButton ? 'liked' : ''}`}
                     style={{
                         transform: animating ? 'scale(1.24)' : undefined,
@@ -102,12 +122,21 @@ export default function RevcloProductCard({
 
             <div className="revclo-card-meta">
                 <div className="revclo-card-row-top">
-                    <span className="revclo-card-brand">{product.brand || 'QUILTED'}</span>
+                    <span className="revclo-card-brand">
+                        {product.brand || 'Archive'}
+                    </span>
                     <span className="revclo-card-price">
-                        ₹{Number(product.price || 21000).toLocaleString('en-IN')}
+                        ₹{Number(product.price || 299).toLocaleString('en-IN')}
                     </span>
                 </div>
-                <span className="revclo-card-size">{product.size || 'Large'}</span>
+                <div className="flex items-center justify-between gap-2">
+                    <span className="text-[12px] font-medium text-[#161616] truncate">
+                        {product.title || product.name}
+                    </span>
+                    <span className="revclo-card-size shrink-0">
+                        {product.size || 'M'}
+                    </span>
+                </div>
             </div>
         </Link>
     );

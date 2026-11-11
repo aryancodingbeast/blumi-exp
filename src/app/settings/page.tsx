@@ -1,480 +1,385 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { signOut } from 'next-auth/react';
 import {
-    AlertCircle,
     ArrowLeft,
+    Bell,
+    Check,
     ChevronRight,
-    FileText,
+    Loader2,
+    LogIn,
     LogOut,
     MapPin,
     Package,
     ShieldCheck,
-    UserX,
-    X,
+    User,
 } from 'lucide-react';
-import { DEFAULT_DEMO_USER, REVCLO_ASSETS } from '@/lib/revcloSeedData';
+import {
+    AuthenticatedMarketplaceUser,
+    getCurrentUser,
+    updateCurrentUserProfile,
+} from '@/actions/marketplace';
+import BottomNavbar from '@/components/revclo/BottomNavbar';
 
 export default function SettingsPage() {
     const router = useRouter();
-    const [activeModal, setActiveModal] = useState<
-        'none' | 'report' | 'policy' | 'verification' | 'blocked'
-    >('none');
-    const [reportCategory, setReportCategory] = useState<string>('Order or Delivery Issue');
-    const [reportText, setReportText] = useState<string>('');
-    const [reportSubmitted, setReportSubmitted] = useState<boolean>(false);
+    const [user, setUser] = useState<AuthenticatedMarketplaceUser | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+    const [savedToast, setSavedToast] = useState(false);
 
-    const handleReportSubmit = (e: React.FormEvent) => {
+    const [name, setName] = useState('');
+    const [handle, setHandle] = useState('');
+    const [bio, setBio] = useState('');
+    const [phone, setPhone] = useState('');
+    const [location, setLocation] = useState('');
+    const [instagramUrl, setInstagramUrl] = useState('');
+    const [pushNotifs, setPushNotifs] = useState(true);
+    const [offerAlerts, setOfferAlerts] = useState(true);
+
+    useEffect(() => {
+        getCurrentUser()
+            .then((u) => {
+                setUser(u);
+                if (u) {
+                    setName(u.name || '');
+                    setHandle(u.handle || '');
+                    setBio(u.bio || '');
+                    setPhone(u.phone || '');
+                    setLocation(u.location || 'New Delhi');
+                    setInstagramUrl(u.instagram_url || '');
+                }
+            })
+            .finally(() => setLoading(false));
+    }, []);
+
+    const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
-        setReportSubmitted(true);
-        setTimeout(() => {
-            setReportSubmitted(false);
-            setReportText('');
-            setActiveModal('none');
-        }, 1200);
+        if (!user) return;
+        setSaving(true);
+        setSavedToast(false);
+        const res = await updateCurrentUserProfile({
+            name,
+            handle,
+            bio,
+            phone,
+            location,
+            instagram_url: instagramUrl,
+        });
+        if (res.success && res.user) {
+            setUser(res.user);
+            setSavedToast(true);
+            setTimeout(() => setSavedToast(false), 3000);
+        }
+        setSaving(false);
+    };
+
+    const handleSignOut = async () => {
+        await signOut({ callbackUrl: '/login' });
     };
 
     return (
-        <div style={{ minHeight: '100vh', paddingBottom: 40 }}>
-            {/* Top Bar matching Figma 165:5431 */}
+        <>
             <header className="revclo-page-header">
-                <button
-                    type="button"
-                    onClick={() => router.back()}
-                    className="revclo-icon-btn"
-                    aria-label="Back"
-                >
-                    <ArrowLeft size={17} />
-                </button>
-                <span className="revclo-page-title">Settings</span>
-                <div style={{ width: 36 }} />
+                <div className="flex items-center gap-3">
+                    <button
+                        type="button"
+                        onClick={() => router.back()}
+                        className="revclo-icon-btn"
+                        aria-label="Back"
+                    >
+                        <ArrowLeft size={17} />
+                    </button>
+                    <h1 className="revclo-page-title">Account Settings</h1>
+                </div>
+
+                {user && (
+                    <button
+                        type="button"
+                        onClick={handleSignOut}
+                        className="px-3.5 py-1.5 rounded-full bg-[#FEF2F2] text-[#DC2626] border border-[#FECACA] text-[12px] font-semibold inline-flex items-center gap-1.5"
+                    >
+                        <LogOut size={13} />
+                        <span>Sign Out</span>
+                    </button>
+                )}
             </header>
 
-            <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-                {/* Profile Summary Card */}
-                <Link
-                    href="/closet"
-                    style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: '14px',
-                        background: '#ffffff',
-                        borderRadius: 14,
-                        border: '1px solid var(--border-card)',
-                    }}
-                >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <img
-                            src={DEFAULT_DEMO_USER.image}
-                            alt={DEFAULT_DEMO_USER.name}
-                            style={{
-                                width: 48,
-                                height: 48,
-                                borderRadius: 999,
-                                objectFit: 'cover',
-                            }}
-                        />
-                        <div>
-                            <div style={{ fontSize: '15px', fontWeight: 700 }}>
-                                {DEFAULT_DEMO_USER.name}
-                            </div>
-                            <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                                @{DEFAULT_DEMO_USER.handle} • View Closet
-                            </div>
-                        </div>
+            <main className="revclo-main-canvas px-4 md:px-0 pt-2">
+                {loading ? (
+                    <div className="py-20 flex flex-col items-center justify-center gap-3 text-[#5E5E5E]">
+                        <Loader2 size={26} className="animate-spin text-[#532B21]" />
+                        <p className="text-[13px]">Loading account settings...</p>
                     </div>
-                    <ChevronRight size={18} color="var(--text-muted)" />
-                </Link>
-
-                {/* Primary Settings Group */}
-                <div
-                    style={{
-                        background: '#ffffff',
-                        borderRadius: 14,
-                        border: '1px solid var(--border-sand)',
-                        overflow: 'hidden',
-                    }}
-                >
-                    <Link
-                        href="/orders"
-                        style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            padding: '15px 16px',
-                            borderBottom: '1px solid var(--border-sand)',
-                        }}
-                    >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                            <Package size={18} color="var(--terracotta-800)" />
-                            <span style={{ fontSize: '14px', fontWeight: 500 }}>Orders</span>
-                        </div>
-                        <ChevronRight size={17} color="var(--text-muted)" />
-                    </Link>
-
-                    <Link
-                        href="/addresses"
-                        style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            padding: '15px 16px',
-                            borderBottom: '1px solid var(--border-sand)',
-                        }}
-                    >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                            <MapPin size={18} color="var(--terracotta-800)" />
-                            <span style={{ fontSize: '14px', fontWeight: 500 }}>Addresses</span>
-                        </div>
-                        <ChevronRight size={17} color="var(--text-muted)" />
-                    </Link>
-
-                    <button
-                        type="button"
-                        onClick={() => setActiveModal('verification')}
-                        style={{
-                            width: '100%',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            padding: '15px 16px',
-                            borderBottom: '1px solid var(--border-sand)',
-                        }}
-                    >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                            <ShieldCheck size={18} color="var(--terracotta-800)" />
-                            <span style={{ fontSize: '14px', fontWeight: 500 }}>Verification</span>
-                        </div>
-                        <span className="revclo-pristine-pill" style={{ position: 'static' }}>
-                            Verified
-                        </span>
-                    </button>
-
-                    {/* Linked with Google & Apple matching 165:5431 */}
-                    <div
-                        style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            padding: '15px 16px',
-                            borderBottom: '1px solid var(--border-sand)',
-                        }}
-                    >
-                        <span style={{ fontSize: '14px', fontWeight: 500 }}>Linked with</span>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                            <img
-                                src={REVCLO_ASSETS.googleIcon}
-                                alt="Google"
-                                style={{ width: 22, height: 22, objectFit: 'contain' }}
-                            />
-                            <img
-                                src={REVCLO_ASSETS.appleIcon}
-                                alt="Apple"
-                                style={{ width: 22, height: 22, objectFit: 'contain' }}
-                            />
-                        </div>
-                    </div>
-
-                    <button
-                        type="button"
-                        onClick={() => setActiveModal('blocked')}
-                        style={{
-                            width: '100%',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            padding: '15px 16px',
-                        }}
-                    >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                            <UserX size={18} color="var(--text-secondary)" />
-                            <span style={{ fontSize: '14px', fontWeight: 500 }}>Blocked Users</span>
-                        </div>
-                        <ChevronRight size={17} color="var(--text-muted)" />
-                    </button>
-                </div>
-
-                {/* Support & Legal Group */}
-                <div
-                    style={{
-                        background: '#ffffff',
-                        borderRadius: 14,
-                        border: '1px solid var(--border-sand)',
-                        overflow: 'hidden',
-                    }}
-                >
-                    <button
-                        type="button"
-                        onClick={() => setActiveModal('report')}
-                        style={{
-                            width: '100%',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            padding: '15px 16px',
-                            borderBottom: '1px solid var(--border-sand)',
-                        }}
-                    >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                            <AlertCircle size={18} color="var(--terracotta-800)" />
-                            <span style={{ fontSize: '14px', fontWeight: 500 }}>
-                                Report a problem
-                            </span>
-                        </div>
-                        <ChevronRight size={17} color="var(--text-muted)" />
-                    </button>
-
-                    <button
-                        type="button"
-                        onClick={() => setActiveModal('policy')}
-                        style={{
-                            width: '100%',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            padding: '15px 16px',
-                        }}
-                    >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                            <FileText size={18} color="var(--text-secondary)" />
-                            <span style={{ fontSize: '14px', fontWeight: 500 }}>User Policy</span>
-                        </div>
-                        <ChevronRight size={17} color="var(--text-muted)" />
-                    </button>
-                </div>
-
-                {/* App Version & Logout Pill matching 165:5431 */}
-                <div
-                    style={{
-                        marginTop: 12,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        gap: 12,
-                    }}
-                >
-                    <button
-                        type="button"
-                        onClick={() => signOut({ callbackUrl: '/' })}
-                        style={{
-                            width: '100%',
-                            padding: '13px',
-                            borderRadius: 999,
-                            background: '#ffffff',
-                            border: '1px solid #fca5a5',
-                            color: '#dc2626',
-                            fontSize: '14px',
-                            fontWeight: 600,
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: 8,
-                        }}
-                    >
-                        <LogOut size={16} />
-                        <span>Logout</span>
-                    </button>
-
-                    <span style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>
-                        App Version v1.2.01
-                    </span>
-                </div>
-            </div>
-
-            {/* Report a Problem Modal matching Figma 178:5309 */}
-            {activeModal === 'report' && (
-                <div className="revclo-backdrop" onClick={() => setActiveModal('none')}>
-                    <div
-                        className="revclo-sheet"
-                        style={{ padding: 20 }}
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        <div
-                            style={{
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                                marginBottom: 14,
-                            }}
+                ) : !user ? (
+                    <div className="max-w-[540px] mx-auto my-8 bg-white rounded-[20px] border border-[#DCD6CD] p-8 text-center">
+                        <User size={32} className="mx-auto mb-3 text-[#532B21]" />
+                        <h2 className="text-[19px] font-bold text-[#161616]">
+                            Sign in to manage your account
+                        </h2>
+                        <p className="text-[13px] text-[#5E5E5E] mt-1.5 mb-5">
+                            Sign in with your account to customize your closet profile, saved addresses, and payout preferences.
+                        </p>
+                        <Link
+                            href="/login?callbackUrl=/settings"
+                            className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-[#161616] text-white text-[13px] font-semibold"
                         >
-                            <h3 style={{ fontSize: '16px', fontWeight: 700 }}>Report a problem</h3>
-                            <button type="button" onClick={() => setActiveModal('none')}>
-                                <X size={18} />
-                            </button>
+                            <LogIn size={15} />
+                            <span>Sign In</span>
+                        </Link>
+                    </div>
+                ) : (
+                    <div className="revclo-desktop-split">
+                        {/* Left Column: Account Overview & Navigation */}
+                        <div className="flex flex-col gap-4">
+                            <div className="bg-white rounded-[20px] border border-[#DCD6CD] p-5 flex items-center gap-4">
+                                <div className="w-16 h-16 rounded-full overflow-hidden bg-[#161616] text-white flex items-center justify-center text-[22px] font-bold shrink-0">
+                                    {user.image ? (
+                                        <img
+                                            src={user.image}
+                                            alt={user.name}
+                                            className="w-full h-full object-cover"
+                                        />
+                                    ) : (
+                                        <span>{user.name.charAt(0).toUpperCase()}</span>
+                                    )}
+                                </div>
+                                <div className="min-w-0">
+                                    <h2 className="text-[17px] font-bold text-[#161616] truncate">
+                                        {user.name}
+                                    </h2>
+                                    <p className="text-[12px] text-[#5E5E5E] truncate">
+                                        {user.email}
+                                    </p>
+                                    <span className="inline-block mt-1 px-2.5 py-0.5 rounded-full bg-[#F7F6F3] border border-[#DCD6CD] text-[11px] font-semibold text-[#532B21]">
+                                        @{user.handle}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div className="bg-white rounded-[20px] border border-[#DCD6CD] divide-y divide-[#EFEFEF] overflow-hidden">
+                                <Link
+                                    href="/orders"
+                                    className="p-4 flex items-center justify-between hover:bg-[#F7F6F3] transition-colors"
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <Package size={18} className="text-[#532B21]" />
+                                        <div>
+                                            <div className="text-[14px] font-semibold text-[#161616]">
+                                                Past Orders & Sales
+                                            </div>
+                                            <div className="text-[11px] text-[#6F6F6F]">
+                                                Track purchases, sold pieces & invoices
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <ChevronRight size={16} className="text-[#7C7C7C]" />
+                                </Link>
+
+                                <Link
+                                    href="/addresses"
+                                    className="p-4 flex items-center justify-between hover:bg-[#F7F6F3] transition-colors"
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <MapPin size={18} className="text-[#532B21]" />
+                                        <div>
+                                            <div className="text-[14px] font-semibold text-[#161616]">
+                                                Saved Addresses
+                                            </div>
+                                            <div className="text-[11px] text-[#6F6F6F]">
+                                                Manage delivery & pickup locations
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <ChevronRight size={16} className="text-[#7C7C7C]" />
+                                </Link>
+
+                                <Link
+                                    href="/closet"
+                                    className="p-4 flex items-center justify-between hover:bg-[#F7F6F3] transition-colors"
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <ShieldCheck size={18} className="text-[#007A00]" />
+                                        <div>
+                                            <div className="text-[14px] font-semibold text-[#161616]">
+                                                Public Closet Profile
+                                            </div>
+                                            <div className="text-[11px] text-[#6F6F6F]">
+                                                View your live listings & wishlist
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <ChevronRight size={16} className="text-[#7C7C7C]" />
+                                </Link>
+                            </div>
                         </div>
 
-                        {reportSubmitted ? (
-                            <div
-                                style={{
-                                    padding: '28px 16px',
-                                    textAlign: 'center',
-                                    color: '#007a00',
-                                    fontWeight: 600,
-                                }}
-                            >
-                                Thank you! Our trust & safety team has received your report.
+                        {/* Right Column: Live Profile Form */}
+                        <form
+                            onSubmit={handleSave}
+                            className="bg-white rounded-[20px] border border-[#DCD6CD] p-5 md:p-6 flex flex-col gap-4"
+                        >
+                            <div className="flex items-center justify-between">
+                                <h3 className="text-[16px] font-bold text-[#161616]">
+                                    Edit Closet Profile
+                                </h3>
+                                {savedToast && (
+                                    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-[#E5F6DF] text-[#007A00] text-[11px] font-bold">
+                                        <Check size={12} />
+                                        Saved to Supabase
+                                    </span>
+                                )}
                             </div>
-                        ) : (
-                            <form
-                                onSubmit={handleReportSubmit}
-                                style={{ display: 'flex', flexDirection: 'column', gap: 12 }}
-                            >
-                                <div>
-                                    <label
-                                        style={{
-                                            display: 'block',
-                                            fontSize: '12px',
-                                            fontWeight: 600,
-                                            marginBottom: 6,
-                                        }}
-                                    >
-                                        Choose a category
-                                    </label>
-                                    <select
-                                        value={reportCategory}
-                                        onChange={(e) => setReportCategory(e.target.value)}
-                                        style={{
-                                            width: '100%',
-                                            padding: '10px 12px',
-                                            borderRadius: 10,
-                                            border: '1px solid var(--border-sand)',
-                                            background: '#ffffff',
-                                            fontSize: '13px',
-                                        }}
-                                    >
-                                        <option>Order or Delivery Issue</option>
-                                        <option>Counterfeit / Authenticity Concern</option>
-                                        <option>Payment or Refund Delay</option>
-                                        <option>Bug or Technical Glitch</option>
-                                    </select>
-                                </div>
 
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                                 <div>
-                                    <label
-                                        style={{
-                                            display: 'block',
-                                            fontSize: '12px',
-                                            fontWeight: 600,
-                                            marginBottom: 6,
-                                        }}
-                                    >
-                                        Describe what happened
+                                    <label className="block text-[11px] font-semibold text-[#5E5E5E] mb-1">
+                                        Display Name
                                     </label>
-                                    <textarea
-                                        rows={4}
-                                        required
-                                        value={reportText}
-                                        onChange={(e) => setReportText(e.target.value)}
-                                        placeholder="Share order ID or item details..."
-                                        style={{
-                                            width: '100%',
-                                            padding: '10px 12px',
-                                            borderRadius: 10,
-                                            border: '1px solid var(--border-sand)',
-                                            fontSize: '13px',
-                                        }}
+                                    <input
+                                        type="text"
+                                        value={name}
+                                        onChange={(e) => setName(e.target.value)}
+                                        className="w-full h-10 px-3.5 rounded-xl border border-[#DCD6CD] text-[13px] outline-none focus:border-[#161616]"
                                     />
                                 </div>
 
-                                <button type="submit" className="revclo-primary-btn">
-                                    Submit Report
-                                </button>
-                            </form>
-                        )}
-                    </div>
-                </div>
-            )}
+                                <div>
+                                    <label className="block text-[11px] font-semibold text-[#5E5E5E] mb-1">
+                                        Closet Handle (@)
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={handle}
+                                        onChange={(e) => setHandle(e.target.value)}
+                                        className="w-full h-10 px-3.5 rounded-xl border border-[#DCD6CD] text-[13px] outline-none focus:border-[#161616]"
+                                    />
+                                </div>
+                            </div>
 
-            {/* User Policy Modal matching Figma 178:6011 */}
-            {activeModal === 'policy' && (
-                <div className="revclo-backdrop" onClick={() => setActiveModal('none')}>
-                    <div
-                        className="revclo-sheet"
-                        style={{ padding: 20, maxHeight: '80vh', overflowY: 'auto' }}
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        <div
-                            style={{
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                                marginBottom: 14,
-                            }}
-                        >
-                            <h3 style={{ fontSize: '16px', fontWeight: 700 }}>User Policy</h3>
-                            <button type="button" onClick={() => setActiveModal('none')}>
-                                <X size={18} />
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                                <div>
+                                    <label className="block text-[11px] font-semibold text-[#5E5E5E] mb-1">
+                                        Phone Number
+                                    </label>
+                                    <input
+                                        type="tel"
+                                        value={phone}
+                                        onChange={(e) => setPhone(e.target.value)}
+                                        placeholder="+91 98..."
+                                        className="w-full h-10 px-3.5 rounded-xl border border-[#DCD6CD] text-[13px] outline-none focus:border-[#161616]"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-[11px] font-semibold text-[#5E5E5E] mb-1">
+                                        City / Location
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={location}
+                                        onChange={(e) => setLocation(e.target.value)}
+                                        placeholder="New Delhi, Mumbai, Bengaluru..."
+                                        className="w-full h-10 px-3.5 rounded-xl border border-[#DCD6CD] text-[13px] outline-none focus:border-[#161616]"
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-[11px] font-semibold text-[#5E5E5E] mb-1">
+                                    Instagram Handle or URL
+                                </label>
+                                <input
+                                    type="text"
+                                    value={instagramUrl}
+                                    onChange={(e) => setInstagramUrl(e.target.value)}
+                                    placeholder="https://instagram.com/yourhandle"
+                                    className="w-full h-10 px-3.5 rounded-xl border border-[#DCD6CD] text-[13px] outline-none focus:border-[#161616]"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-[11px] font-semibold text-[#5E5E5E] mb-1">
+                                    Closet Bio
+                                </label>
+                                <textarea
+                                    rows={3}
+                                    value={bio}
+                                    onChange={(e) => setBio(e.target.value)}
+                                    className="w-full p-3.5 rounded-xl border border-[#DCD6CD] text-[13px] outline-none focus:border-[#161616] resize-y"
+                                />
+                            </div>
+
+                            {/* Notification Toggles */}
+                            <div className="pt-2 border-t border-[#EFEFEF] flex flex-col gap-3">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2.5">
+                                        <Bell size={15} className="text-[#532B21]" />
+                                        <span className="text-[13px] font-medium text-[#161616]">
+                                            Buyer message & offer notifications
+                                        </span>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setOfferAlerts((v) => !v)}
+                                        className={`w-10 h-6 rounded-full p-0.5 transition-colors ${
+                                            offerAlerts ? 'bg-[#161616]' : 'bg-[#CCCCCC]'
+                                        }`}
+                                    >
+                                        <span
+                                            className={`block w-5 h-5 rounded-full bg-white transition-transform ${
+                                                offerAlerts ? 'translate-x-4' : 'translate-x-0'
+                                            }`}
+                                        />
+                                    </button>
+                                </div>
+
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2.5">
+                                        <Bell size={15} className="text-[#532B21]" />
+                                        <span className="text-[13px] font-medium text-[#161616]">
+                                            Wishlist price-drop alerts
+                                        </span>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setPushNotifs((v) => !v)}
+                                        className={`w-10 h-6 rounded-full p-0.5 transition-colors ${
+                                            pushNotifs ? 'bg-[#161616]' : 'bg-[#CCCCCC]'
+                                        }`}
+                                    >
+                                        <span
+                                            className={`block w-5 h-5 rounded-full bg-white transition-transform ${
+                                                pushNotifs ? 'translate-x-4' : 'translate-x-0'
+                                            }`}
+                                        />
+                                    </button>
+                                </div>
+                            </div>
+
+                            <button
+                                type="submit"
+                                disabled={saving}
+                                className="mt-2 h-11 rounded-xl bg-[#161616] hover:bg-black text-white text-[13px] font-semibold flex items-center justify-center gap-2"
+                            >
+                                {saving ? (
+                                    <>
+                                        <Loader2 size={15} className="animate-spin" />
+                                        <span>Saving Profile...</span>
+                                    </>
+                                ) : (
+                                    <span>Save Profile Changes</span>
+                                )}
                             </button>
-                        </div>
-
-                        <div
-                            style={{
-                                display: 'flex',
-                                flexDirection: 'column',
-                                gap: 12,
-                                fontSize: '12.5px',
-                                lineHeight: 1.55,
-                                color: 'var(--text-secondary)',
-                            }}
-                        >
-                            <h4 style={{ color: 'var(--text-ink)', fontSize: '14px' }}>
-                                1. Privacy Policy & Buyer Protection
-                            </h4>
-                            <p>
-                                Every transaction on RevClo is protected by escrow until delivery is
-                                confirmed. Seller payouts are released within 24 hours of verified
-                                delivery.
-                            </p>
-                            <h4 style={{ color: 'var(--text-ink)', fontSize: '14px' }}>
-                                2. Terms of Use & AI Trust Score
-                            </h4>
-                            <p>
-                                Sellers must upload unaltered photos of the actual garment. Items
-                                with a Trust Score below 75 require manual tag verification before
-                                appearing in Certified Fits.
-                            </p>
-                        </div>
+                        </form>
                     </div>
-                </div>
-            )}
+                )}
+            </main>
 
-            {/* Verification & Blocked Drawers */}
-            {(activeModal === 'verification' || activeModal === 'blocked') && (
-                <div className="revclo-backdrop" onClick={() => setActiveModal('none')}>
-                    <div
-                        className="revclo-sheet"
-                        style={{ padding: 20 }}
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        <div
-                            style={{
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                                marginBottom: 12,
-                            }}
-                        >
-                            <h3 style={{ fontSize: '15px', fontWeight: 700 }}>
-                                {activeModal === 'verification'
-                                    ? 'Seller Verification Status'
-                                    : 'Blocked Users'}
-                            </h3>
-                            <button type="button" onClick={() => setActiveModal('none')}>
-                                <X size={18} />
-                            </button>
-                        </div>
-                        <p style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-                            {activeModal === 'verification'
-                                ? 'Your phone number, UPI payout account, and closet identity (@emillyy) are verified.'
-                                : 'You have not blocked any closets on RevClo.'}
-                        </p>
-                    </div>
-                </div>
-            )}
-        </div>
+            <BottomNavbar />
+        </>
     );
 }

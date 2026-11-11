@@ -53,7 +53,7 @@ function ensureBase64Image(img: string): string | null {
 }
 
 /**
- * Uploads the primary scan image to Supabase Storage (`product-images`) and returns a public URL
+ * Uploads the primary scan image to Supabase Storage (`products`) and returns a public URL
  * so Google Lens can scan the image directly.
  */
 async function uploadScanToSupabaseStorage(base64Image: string): Promise<string | null> {
@@ -63,7 +63,7 @@ async function uploadScanToSupabaseStorage(base64Image: string): Promise<string 
         const fileName = `temp-scans/scan-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.jpg`;
 
         const { error } = await supabaseAdmin.storage
-            .from('product-images')
+            .from('products')
             .upload(fileName, buffer, {
                 contentType: 'image/jpeg',
                 upsert: true,
@@ -72,7 +72,7 @@ async function uploadScanToSupabaseStorage(base64Image: string): Promise<string 
         if (error) return null;
 
         const { data } = supabaseAdmin.storage
-            .from('product-images')
+            .from('products')
             .getPublicUrl(fileName);
 
         return data?.publicUrl || null;
@@ -257,24 +257,24 @@ export async function runSupabaseGooglePriceAgent(input: {
     const detectedBrand =
         vision?.brand && vision.brand !== 'Unknown'
             ? vision.brand
-            : input.userBrandHint || 'QUILTED';
+            : input.userBrandHint || 'RevClo Archive';
     const detectedTitle =
         vision?.subBrand && vision.subBrand.length > 3
             ? vision.subBrand
             : vision?.garmentType
               ? `${detectedBrand} ${vision.color || ''} ${vision.garmentType}`.trim()
-              : input.userTitleHint || 'Quilted Leather Archive Shoulder Bag';
-    const detectedCategory = vision?.category || 'Accessories';
-    const detectedSubCategory = vision?.garmentType || 'Handbags';
-    const detectedColor = vision?.color || 'Cream';
-    const detectedFabric = vision?.fabric || '100% Lambskin Leather';
+              : input.userTitleHint || 'Curated Archive Garment';
+    const detectedCategory = vision?.category || 'Tops';
+    const detectedSubCategory = vision?.garmentType || 'Shirts & Blouses';
+    const detectedColor = vision?.color || 'Neutral';
+    const detectedFabric = vision?.fabric || 'Cotton Blend';
     const detectedSize =
-        vision?.size && vision.size !== 'Unknown' ? vision.size : 'Large';
+        vision?.size && vision.size !== 'Unknown' ? vision.size : 'M';
     const detectedDepartment: 'Women' | 'Men' =
         vision?.estimatedGender === 'mens' ? 'Men' : 'Women';
     const detectedCondition =
         input.userConditionHint || mapVisionConditionToRevclo(vision?.condition);
-    const estimatedBrandPrice = vision?.estimatedBrandPrice || 2499;
+    const estimatedBrandPrice = vision?.estimatedBrandPrice || 1899;
 
     // 2. Try invoking the Supabase Edge Function `google-price-agent` first
     let executedVia: 'supabase-edge-function' | 'supabase-direct-agent' =

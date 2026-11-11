@@ -1,199 +1,197 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Bookmark, Check, Share2 } from 'lucide-react';
+import { useParams, useRouter } from 'next/navigation';
+import { ArrowLeft, Bookmark, Loader2, Share2 } from 'lucide-react';
 import { Collection, Product } from '@/types';
-import { getCollectionBySlug } from '@/actions/marketplace';
-import { SEED_COLLECTIONS, SEED_PRODUCTS } from '@/lib/revcloSeedData';
+import {
+    getCollectionBySlug,
+    getMarketplaceProducts,
+    toggleCollectionFollow,
+    toggleProductLike,
+} from '@/actions/marketplace';
 import RevcloProductCard from '@/components/revclo/RevcloProductCard';
+import BottomNavbar from '@/components/revclo/BottomNavbar';
 
 export default function CollectionDetailPage() {
     const params = useParams();
     const router = useRouter();
-    const slug = typeof params.slug === 'string' ? params.slug : 'summer-inspirations';
+    const slug = String(params?.slug || '');
 
-    const [collection, setCollection] = useState<Collection>(SEED_COLLECTIONS[0]);
-    const [products, setProducts] = useState<Product[]>(SEED_PRODUCTS);
-    const [followed, setFollowed] = useState<boolean>(false);
-    const [savesCount, setSavesCount] = useState<number>(119);
+    const [collection, setCollection] = useState<Collection | null>(null);
+    const [products, setProducts] = useState<Product[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [saved, setSaved] = useState(false);
+    const [savesCount, setSavesCount] = useState(0);
 
     useEffect(() => {
-        getCollectionBySlug(slug).then((res) => {
-            setCollection(res.collection);
-            setProducts(res.products);
-            setFollowed(res.isFollowed);
-            setSavesCount(res.collection.saves_count);
-        });
+        let active = true;
+        setLoading(true);
+        Promise.all([
+            getCollectionBySlug(slug),
+            getMarketplaceProducts({ collectionSlug: slug }),
+            getMarketplaceProducts({ sortBy: 'trending' }),
+        ])
+            .then(([col, colProducts, allProducts]) => {
+                if (!active) return;
+                setCollection(col);
+                setSavesCount(col?.saves_count || 64);
+                setProducts(
+                    colProducts.length > 0 ? colProducts : allProducts.slice(0, 12)
+                );
+            })
+            .finally(() => {
+                if (active) setLoading(false);
+            });
+        return () => {
+            active = false;
+        };
     }, [slug]);
 
-    const handleFollowToggle = () => {
-        const next = !followed;
-        setFollowed(next);
-        setSavesCount((prev) => (next ? prev + 1 : Math.max(0, prev - 1)));
+    const handleToggleSave = async () => {
+        if (!collection) return;
+        const next = !saved;
+        setSaved(next);
+        setSavesCount((c) => c + (next ? 1 : -1));
+        try {
+            const res = await toggleCollectionFollow(collection.slug);
+            setSaved(res.following);
+            setSavesCount(res.savesCount);
+        } catch {
+            // ignore
+        }
+    };
+
+    const handleLikeToggle = async (productId: string, nextLiked: boolean) => {
+        setProducts((prev) =>
+            prev.map((p) =>
+                p.id === productId ? { ...p, is_liked: nextLiked } : p
+            )
+        );
+        try {
+            await toggleProductLike(productId);
+        } catch {
+            // ignore
+        }
     };
 
     return (
-        <div style={{ minHeight: '100vh', paddingBottom: 32 }}>
-            {/* Hero Cover matching Figma 93:4650 */}
-            <div style={{ position: 'relative', height: '250px', width: '100%' }}>
-                <img
-                    src={collection.cover_image}
-                    alt={collection.title}
-                    style={{
-                        width: '100%',
-                        height: '100%',
-                        objectFit: 'cover',
-                        filter: 'brightness(0.76)',
-                    }}
-                />
-
-                {/* Top Floating Actions */}
-                <div
-                    style={{
-                        position: 'absolute',
-                        top: 14,
-                        left: 16,
-                        right: 16,
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                    }}
-                >
+        <>
+            <header className="revclo-page-header">
+                <div className="flex items-center gap-3">
                     <button
                         type="button"
                         onClick={() => router.back()}
                         className="revclo-icon-btn"
-                        style={{ background: 'rgba(255,255,255,0.9)' }}
+                        aria-label="Back"
                     >
                         <ArrowLeft size={17} />
+                    </button>
+                    <h1 className="revclo-page-title">
+                        {collection?.title || 'Curated Collection'}
+                    </h1>
+                </div>
+
+                <div className="flex items-center gap-2">
+                    <button
+                        type="button"
+                        onClick={handleToggleSave}
+                        className={`revclo-outline-btn text-[12px] ${saved ? '!bg-[#532B21] !text-white !border-[#532B21]' : ''}`}
+                    >
+                        <Bookmark
+                            size={14}
+                            fill={saved ? 'currentColor' : 'none'}
+                        />
+                        <span>{saved ? 'Saved' : 'Save'} ({savesCount})</span>
                     </button>
                     <button
                         type="button"
                         onClick={() => {
-                            if (typeof navigator !== 'undefined' && navigator.clipboard) {
-                                navigator.clipboard.writeText(window.location.href);
+                            if (navigator.clipboard) {
+                                navigator.clipboard.writeText(
+                                    window.location.href
+                                );
                             }
                         }}
                         className="revclo-icon-btn"
-                        style={{ background: 'rgba(255,255,255,0.9)' }}
+                        aria-label="Share"
                     >
                         <Share2 size={16} />
                     </button>
                 </div>
+            </header>
 
-                {/* Bottom Overlay Metadata */}
-                <div
-                    style={{
-                        position: 'absolute',
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        padding: '18px 16px',
-                        background:
-                            'linear-gradient(to top, rgba(22,22,22,0.88) 0%, rgba(22,22,22,0.4) 70%, transparent 100%)',
-                        color: '#ffffff',
-                    }}
-                >
-                    <Link
-                        href={`/creator/${collection.creator_handle}`}
-                        style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 6,
-                            marginBottom: 6,
-                        }}
-                    >
-                        <img
-                            src={collection.creator_avatar}
-                            alt={collection.creator_name}
-                            style={{
-                                width: 22,
-                                height: 22,
-                                borderRadius: 999,
-                                objectFit: 'cover',
-                                border: '1px solid #fff',
-                            }}
+            <main className="revclo-main-canvas px-4 md:px-0 pt-2">
+                {loading ? (
+                    <div className="py-24 flex flex-col items-center justify-center gap-3 text-[#5E5E5E]">
+                        <Loader2
+                            size={26}
+                            className="animate-spin text-[#532B21]"
                         />
-                        <span style={{ fontSize: '12px', fontWeight: 500 }}>
-                            @{collection.creator_name}
-                        </span>
-                    </Link>
-
-                    <div
-                        style={{
-                            fontSize: '10px',
-                            fontWeight: 700,
-                            letterSpacing: '0.08em',
-                            textTransform: 'uppercase',
-                            opacity: 0.85,
-                        }}
-                    >
-                        COLLECTION • {savesCount} SAVES
+                        <p className="text-[13px]">Loading collection...</p>
                     </div>
-                    <h1
-                        style={{
-                            fontFamily: 'var(--font-serif)',
-                            fontSize: '26px',
-                            fontWeight: 700,
-                            marginTop: 2,
-                        }}
-                    >
-                        {collection.title}
-                    </h1>
-                </div>
-            </div>
+                ) : (
+                    <>
+                        {collection && (
+                            <section className="relative rounded-[22px] overflow-hidden border border-[#CDC8BF] bg-[#1E1410] text-white mb-8">
+                                <img
+                                    src={collection.cover_image}
+                                    alt={collection.title}
+                                    className="w-full h-[210px] md:h-[260px] object-cover opacity-60"
+                                />
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent p-5 md:p-8 flex flex-col justify-between">
+                                    <span className="self-start px-3 py-1 rounded-full bg-white/15 backdrop-blur-md text-[11px] font-bold uppercase tracking-wider">
+                                        {collection.subtitle ||
+                                            `${products.length} CURATED PIECES`}
+                                    </span>
 
-            {/* Action Bar matching Figma 93:4650 */}
-            <div
-                style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '14px 16px',
-                    borderBottom: '1px solid var(--border-sand)',
-                    background: '#ffffff',
-                }}
-            >
-                <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-ink)' }}>
-                    {collection.items_count} Finds
-                </span>
+                                    <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+                                        <div>
+                                            <h2 className="text-[26px] md:text-[36px] font-extrabold">
+                                                {collection.title}
+                                            </h2>
+                                            <Link
+                                                href={`/creator/${collection.creator_handle}`}
+                                                className="inline-flex items-center gap-2 mt-2 text-[13px] text-white/90 hover:underline"
+                                            >
+                                                <img
+                                                    src={
+                                                        collection.creator_avatar
+                                                    }
+                                                    alt={
+                                                        collection.creator_name
+                                                    }
+                                                    className="w-6 h-6 rounded-full object-cover border border-white/40"
+                                                />
+                                                <span>
+                                                    Curated by{' '}
+                                                    <strong>
+                                                        @{collection.creator_handle}
+                                                    </strong>
+                                                </span>
+                                            </Link>
+                                        </div>
+                                    </div>
+                                </div>
+                            </section>
+                        )}
 
-                <button
-                    type="button"
-                    onClick={handleFollowToggle}
-                    style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 6,
-                        padding: '8px 14px',
-                        borderRadius: 999,
-                        background: followed ? 'var(--locust-100)' : 'var(--terracotta-920)',
-                        color: followed ? 'var(--locust-800)' : '#ffffff',
-                        border: followed
-                            ? '1px solid var(--locust-400)'
-                            : '1px solid var(--terracotta-920)',
-                        fontSize: '12px',
-                        fontWeight: 600,
-                    }}
-                >
-                    {followed ? <Check size={14} /> : <Bookmark size={14} />}
-                    <span>{followed ? 'Following Collection' : 'Follow Collection'}</span>
-                </button>
-            </div>
+                        <div className="revclo-product-grid !px-0">
+                            {products.map((product) => (
+                                <RevcloProductCard
+                                    key={product.id}
+                                    product={product}
+                                    showPristineBadge
+                                    onToggleLike={handleLikeToggle}
+                                />
+                            ))}
+                        </div>
+                    </>
+                )}
+            </main>
 
-            {/* 2-Column Product Grid */}
-            <div style={{ paddingTop: 16 }}>
-                <div className="revclo-product-grid">
-                    {products.map((product) => (
-                        <RevcloProductCard
-                            key={product.id}
-                            product={product}
-                            badgeMode="trust"
-                        />
-                    ))}
-                </div>
-            </div>
-        </div>
+            <BottomNavbar />
+        </>
     );
 }

@@ -3,182 +3,184 @@
 import React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, ArrowRight, ShoppingBag, Trash2 } from 'lucide-react';
+import {
+    ArrowLeft,
+    ArrowRight,
+    ShieldCheck,
+    ShoppingBag,
+    Trash2,
+} from 'lucide-react';
 import { useCart } from '@/components/CartContext';
+import BottomNavbar from '@/components/revclo/BottomNavbar';
 
-export default function CartPage() {
+export default function CartBagPage() {
     const router = useRouter();
-    const { items, removeItem, totalPrice } = useCart();
+    const { items, removeItem, clearCart, totalPrice } = useCart();
 
     const gst = Math.round(totalPrice * 0.05);
-    const shipping = items.length > 0 ? 40 : 0;
+    const shipping = totalPrice >= 999 || totalPrice === 0 ? 0 : 49;
     const grandTotal = totalPrice + gst + shipping;
 
     return (
-        <div style={{ minHeight: '100vh', paddingBottom: 40 }}>
+        <>
             <header className="revclo-page-header">
-                <button
-                    type="button"
-                    onClick={() => router.back()}
-                    className="revclo-icon-btn"
-                    aria-label="Back"
-                >
-                    <ArrowLeft size={17} />
-                </button>
-                <span className="revclo-page-title">Shopping Bag ({items.length})</span>
-                <div style={{ width: 36 }} />
+                <div className="flex items-center gap-3">
+                    <button
+                        type="button"
+                        onClick={() => router.back()}
+                        className="revclo-icon-btn"
+                        aria-label="Back"
+                    >
+                        <ArrowLeft size={17} />
+                    </button>
+                    <h1 className="revclo-page-title">
+                        Shopping Bag ({items.length})
+                    </h1>
+                </div>
+
+                {items.length > 0 && (
+                    <button
+                        type="button"
+                        onClick={clearCart}
+                        className="text-[12px] font-semibold text-[#8B4736] underline"
+                    >
+                        Clear Bag
+                    </button>
+                )}
             </header>
 
-            {items.length === 0 ? (
-                <div
-                    style={{
-                        padding: '64px 24px',
-                        textAlign: 'center',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        gap: 12,
-                    }}
-                >
-                    <div
-                        style={{
-                            width: 60,
-                            height: 60,
-                            borderRadius: 999,
-                            background: 'var(--terracotta-50)',
-                            color: 'var(--terracotta-800)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                        }}
-                    >
-                        <ShoppingBag size={26} />
-                    </div>
-                    <h2 style={{ fontSize: '16px', fontWeight: 700 }}>Your bag is empty</h2>
-                    <p style={{ fontSize: '13px', color: 'var(--text-muted)', maxWidth: 240 }}>
-                        Explore Certified Fits and verified closets to add archive pieces to your
-                        bag.
-                    </p>
-                    <Link href="/" className="revclo-primary-btn" style={{ marginTop: 4 }}>
-                        Explore Marketplace
-                    </Link>
-                </div>
-            ) : (
-                <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-                    {items.map(({ product }) => (
-                        <div
-                            key={product.id}
-                            style={{
-                                background: '#ffffff',
-                                borderRadius: 14,
-                                border: '1px solid var(--border-card)',
-                                padding: 12,
-                                display: 'flex',
-                                gap: 12,
-                                alignItems: 'center',
-                            }}
+            <main className="revclo-main-canvas px-4 md:px-0 pt-2">
+                {items.length === 0 ? (
+                    <div className="max-w-[540px] mx-auto my-10 bg-white rounded-[22px] border border-[#DCD6CD] p-10 text-center">
+                        <ShoppingBag
+                            size={36}
+                            className="mx-auto mb-3 text-[#532B21]"
+                        />
+                        <h2 className="text-[19px] font-bold text-[#161616]">
+                            Your bag is empty
+                        </h2>
+                        <p className="text-[13px] text-[#5E5E5E] mt-1.5 mb-5">
+                            Explore verified closets and add 1-of-1 archive pieces to your bag.
+                        </p>
+                        <Link
+                            href="/search"
+                            className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-[#161616] text-white text-[13px] font-semibold"
                         >
-                            <img
-                                src={product.images[0]}
-                                alt={product.name}
-                                style={{
-                                    width: 68,
-                                    height: 76,
-                                    borderRadius: 10,
-                                    objectFit: 'cover',
-                                    border: '1px solid var(--border-sand)',
-                                }}
-                            />
-                            <div style={{ flex: 1 }}>
+                            <span>Browse Archive Catalog</span>
+                            <ArrowRight size={15} />
+                        </Link>
+                    </div>
+                ) : (
+                    <div className="revclo-desktop-split">
+                        {/* Left Column: Bag Items */}
+                        <div className="flex flex-col gap-3.5">
+                            {items.map(({ product }) => (
                                 <div
-                                    style={{
-                                        fontSize: '11px',
-                                        fontWeight: 700,
-                                        color: 'var(--text-muted)',
-                                        textTransform: 'uppercase',
-                                    }}
+                                    key={product.id}
+                                    className="bg-white rounded-[18px] border border-[#DCD6CD] p-4 flex items-center gap-4"
                                 >
-                                    {product.brand}
+                                    <Link
+                                        href={`/product/${product.id}`}
+                                        className="w-20 h-24 rounded-xl overflow-hidden border border-[#CDC8BF] shrink-0 bg-[#F7F6F3]"
+                                    >
+                                        <img
+                                            src={product.images[0]}
+                                            alt={product.title}
+                                            className="w-full h-full object-cover"
+                                        />
+                                    </Link>
+
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-[11px] font-bold uppercase text-[#8B4736]">
+                                            {product.brand} &bull; Size{' '}
+                                            {product.size}
+                                        </p>
+                                        <Link
+                                            href={`/product/${product.id}`}
+                                            className="text-[15px] font-bold text-[#161616] truncate block hover:underline"
+                                        >
+                                            {product.title}
+                                        </Link>
+                                        <p className="text-[12px] text-[#007A00] font-semibold mt-0.5">
+                                            {product.condition} &bull; 1/1 Piece
+                                        </p>
+                                        <p className="text-[16px] font-extrabold text-[#161616] mt-1">
+                                            ₹
+                                            {product.price.toLocaleString(
+                                                'en-IN'
+                                            )}
+                                        </p>
+                                    </div>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => removeItem(product.id)}
+                                        className="w-9 h-9 rounded-xl bg-[#FEF2F2] text-[#DC2626] flex items-center justify-center shrink-0"
+                                        aria-label="Remove item"
+                                    >
+                                        <Trash2 size={15} />
+                                    </button>
                                 </div>
-                                <div style={{ fontSize: '14px', fontWeight: 600, marginTop: 2 }}>
-                                    {product.name}
+                            ))}
+                        </div>
+
+                        {/* Right Column: Order Summary */}
+                        <div className="bg-white rounded-[20px] border border-[#DCD6CD] p-5 md:p-6 flex flex-col gap-4 sticky top-24">
+                            <h2 className="text-[16px] font-bold text-[#161616]">
+                                Order Summary
+                            </h2>
+
+                            <div className="flex flex-col gap-2.5 text-[13px] border-t border-b border-[#EFEFEF] py-3.5">
+                                <div className="flex justify-between text-[#5E5E5E]">
+                                    <span>
+                                        Subtotal ({items.length} item
+                                        {items.length > 1 ? 's' : ''})
+                                    </span>
+                                    <span className="font-semibold text-[#161616]">
+                                        ₹{totalPrice.toLocaleString('en-IN')}
+                                    </span>
                                 </div>
-                                <div
-                                    style={{
-                                        fontSize: '12px',
-                                        color: 'var(--text-secondary)',
-                                        marginTop: 2,
-                                    }}
-                                >
-                                    Size: {product.size} • {product.condition}
+                                <div className="flex justify-between text-[#5E5E5E]">
+                                    <span>Buyer Protection & GST (5%)</span>
+                                    <span>₹{gst.toLocaleString('en-IN')}</span>
                                 </div>
-                                <div style={{ fontSize: '14px', fontWeight: 700, marginTop: 6 }}>
-                                    ₹{product.price.toLocaleString('en-IN')}
+                                <div className="flex justify-between text-[#5E5E5E]">
+                                    <span>Delhivery Express Shipping</span>
+                                    <span className="font-semibold text-[#007A00]">
+                                        {shipping === 0
+                                            ? 'FREE'
+                                            : `₹${shipping}`}
+                                    </span>
                                 </div>
                             </div>
-                            <button
-                                type="button"
-                                onClick={() => removeItem(product.id)}
-                                aria-label="Remove item"
-                                style={{ color: '#dc2626', padding: 6 }}
-                            >
-                                <Trash2 size={16} />
-                            </button>
-                        </div>
-                    ))}
 
-                    {/* Bill Summary Box */}
-                    <div
-                        style={{
-                            background: '#ffffff',
-                            borderRadius: 14,
-                            border: '1px solid var(--border-sand)',
-                            padding: 16,
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: 8,
-                            fontSize: '13px',
-                        }}
-                    >
-                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                            <span style={{ color: 'var(--text-secondary)' }}>Item Total</span>
-                            <span>₹{totalPrice.toLocaleString('en-IN')}</span>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                            <span style={{ color: 'var(--text-secondary)' }}>GST (5%)</span>
-                            <span>₹{gst.toLocaleString('en-IN')}</span>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                            <span style={{ color: 'var(--text-secondary)' }}>
-                                Express Insured Shipping
-                            </span>
-                            <span>₹{shipping}</span>
-                        </div>
-                        <div
-                            style={{
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                paddingTop: 10,
-                                borderTop: '1px solid var(--border-sand)',
-                                fontSize: '15px',
-                                fontWeight: 700,
-                            }}
-                        >
-                            <span>Total Payable</span>
-                            <span>₹{grandTotal.toLocaleString('en-IN')}</span>
+                            <div className="flex justify-between items-center text-[18px] font-extrabold text-[#161616]">
+                                <span>Total Payable</span>
+                                <span>
+                                    ₹{grandTotal.toLocaleString('en-IN')}
+                                </span>
+                            </div>
+
+                            <div className="p-3 rounded-xl bg-[#F2FEDF]/60 border border-[#B0C988] flex items-center gap-2 text-[12px] text-[#1D4D0F]">
+                                <ShieldCheck size={16} className="shrink-0" />
+                                <span>
+                                    Protected by RevClo Escrow until your package is delivered and verified.
+                                </span>
+                            </div>
+
+                            <Link
+                                href="/checkout"
+                                className="h-12 rounded-xl bg-[#161616] hover:bg-black text-white text-[14px] font-semibold flex items-center justify-center gap-2"
+                            >
+                                <span>Proceed to Checkout</span>
+                                <ArrowRight size={16} />
+                            </Link>
                         </div>
                     </div>
+                )}
+            </main>
 
-                    <Link
-                        href="/checkout"
-                        className="revclo-primary-btn"
-                        style={{ width: '100%', padding: '14px' }}
-                    >
-                        <span>Proceed to Checkout</span>
-                        <ArrowRight size={16} />
-                    </Link>
-                </div>
-            )}
-        </div>
+            <BottomNavbar />
+        </>
     );
 }

@@ -2,6 +2,7 @@ export type UserRole = 'BUYER' | 'SELLER' | 'ADMIN';
 export type ProductStatus =
     | 'ACTIVE'
     | 'SOLD'
+    | 'INACTIVE'
     | 'BLOCKED'
     | 'EXCHANGED'
     | 'available'

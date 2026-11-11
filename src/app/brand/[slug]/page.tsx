@@ -4,203 +4,232 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
     ArrowLeft,
-    Check,
     ExternalLink,
-    Plus,
-    Search,
+    Loader2,
+    Share2,
     SlidersHorizontal,
 } from 'lucide-react';
-import { Brand, MarketplaceFilterState, Product } from '@/types';
-import { getBrandBySlug } from '@/actions/marketplace';
-import { SEED_BRANDS, SEED_PRODUCTS } from '@/lib/revcloSeedData';
+import { Brand, Product } from '@/types';
+import {
+    getBrandBySlug,
+    getMarketplaceProducts,
+    toggleBrandFollow,
+    toggleProductLike,
+} from '@/actions/marketplace';
 import RevcloProductCard from '@/components/revclo/RevcloProductCard';
-import FilterSortDrawer from '@/components/revclo/FilterSortDrawer';
+import FilterSortDrawer, {
+    FilterSortState,
+} from '@/components/revclo/FilterSortDrawer';
+import BottomNavbar from '@/components/revclo/BottomNavbar';
+
+const DEFAULT_FILTERS: FilterSortState = {
+    sortBy: 'trending',
+    category: 'All',
+    sizes: [],
+    conditions: [],
+    brands: [],
+    maxPrice: 50000,
+};
 
 export default function BrandDetailPage() {
     const params = useParams();
     const router = useRouter();
-    const slug = typeof params.slug === 'string' ? params.slug : 'diesel';
+    const slug = String(params?.slug || '');
 
-    const [brand, setBrand] = useState<Brand>(SEED_BRANDS[0]);
-    const [products, setProducts] = useState<Product[]>(SEED_PRODUCTS);
-    const [inFeed, setInFeed] = useState<boolean>(false);
-    const [searchQuery, setSearchQuery] = useState<string>('');
-    const [isFilterOpen, setIsFilterOpen] = useState<boolean>(false);
-    const [filters, setFilters] = useState<MarketplaceFilterState>({
-        sortBy: 'trending',
-    });
+    const [brand, setBrand] = useState<Brand | null>(null);
+    const [products, setProducts] = useState<Product[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [following, setFollowing] = useState(false);
+    const [followersCount, setFollowersCount] = useState(0);
+    const [filterOpen, setFilterOpen] = useState(false);
+    const [filters, setFilters] = useState<FilterSortState>(DEFAULT_FILTERS);
 
     useEffect(() => {
-        getBrandBySlug(slug).then((res) => {
-            setBrand(res.brand);
-            setProducts(res.products);
-            setInFeed(res.isFollowed);
-        });
+        let active = true;
+        setLoading(true);
+        Promise.all([
+            getBrandBySlug(slug),
+            getMarketplaceProducts({ brandSlug: slug }),
+            getMarketplaceProducts({ sortBy: 'trending' }),
+        ])
+            .then(([foundBrand, brandProducts, allProducts]) => {
+                if (!active) return;
+                setBrand(foundBrand);
+                setFollowersCount(foundBrand?.followers_count || 180);
+                setProducts(
+                    brandProducts.length > 0
+                        ? brandProducts
+                        : allProducts.slice(0, 12)
+                );
+            })
+            .finally(() => {
+                if (active) setLoading(false);
+            });
+        return () => {
+            active = false;
+        };
     }, [slug]);
 
-    const filtered = products.filter((p) => {
-        if (searchQuery.trim()) {
-            const q = searchQuery.toLowerCase();
-            if (
-                !p.name.toLowerCase().includes(q) &&
-                !p.category.toLowerCase().includes(q)
-            ) {
-                return false;
-            }
+    const handleFollow = async () => {
+        if (!brand) return;
+        const next = !following;
+        setFollowing(next);
+        setFollowersCount((c) => c + (next ? 1 : -1));
+        try {
+            const res = await toggleBrandFollow(brand.slug);
+            setFollowing(res.following);
+            setFollowersCount(res.followersCount);
+        } catch {
+            // ignore
         }
-        return true;
-    });
+    };
+
+    const handleLikeToggle = async (productId: string, nextLiked: boolean) => {
+        setProducts((prev) =>
+            prev.map((p) =>
+                p.id === productId ? { ...p, is_liked: nextLiked } : p
+            )
+        );
+        try {
+            await toggleProductLike(productId);
+        } catch {
+            // ignore
+        }
+    };
 
     return (
-        <div style={{ minHeight: '100vh', paddingBottom: 32 }}>
-            {/* Top Bar matching Figma 102:3591 */}
+        <>
             <header className="revclo-page-header">
-                <button
-                    type="button"
-                    onClick={() => router.back()}
-                    className="revclo-icon-btn"
-                    aria-label="Back"
-                >
-                    <ArrowLeft size={17} />
-                </button>
-                <span className="revclo-page-title">{brand.name}</span>
-                <div style={{ width: 36 }} />
+                <div className="flex items-center gap-3">
+                    <button
+                        type="button"
+                        onClick={() => router.back()}
+                        className="revclo-icon-btn"
+                        aria-label="Back"
+                    >
+                        <ArrowLeft size={17} />
+                    </button>
+                    <h1 className="revclo-page-title">
+                        {brand?.name || slug.toUpperCase()}
+                    </h1>
+                </div>
+
+                <div className="flex items-center gap-2">
+                    <button
+                        type="button"
+                        onClick={() => setFilterOpen(true)}
+                        className="revclo-outline-btn text-[12px]"
+                    >
+                        <SlidersHorizontal size={14} />
+                        <span>Filter</span>
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            if (navigator.clipboard) {
+                                navigator.clipboard.writeText(
+                                    window.location.href
+                                );
+                            }
+                        }}
+                        className="revclo-icon-btn"
+                        aria-label="Share"
+                    >
+                        <Share2 size={16} />
+                    </button>
+                </div>
             </header>
 
-            {/* Brand Hero Banner & Script Title matching 102:3591 */}
-            <section
-                style={{
-                    padding: '20px 16px 16px',
-                    background: '#ffffff',
-                    borderBottom: '1px solid var(--border-sand)',
-                }}
-            >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <h1
-                        style={{
-                            fontFamily: 'var(--font-script)',
-                            fontSize: '46px',
-                            fontWeight: 700,
-                            lineHeight: 0.95,
-                            color: 'var(--terracotta-900)',
-                        }}
-                    >
-                        {brand.name}
-                    </h1>
-                    <span
-                        style={{
-                            fontSize: '11px',
-                            fontWeight: 600,
-                            color: 'var(--text-muted)',
-                            background: 'var(--bg-card)',
-                            padding: '4px 10px',
-                            borderRadius: 999,
-                            border: '1px solid var(--border-sand)',
-                        }}
-                    >
-                        {brand.followers_count.toLocaleString()} followers
-                    </span>
-                </div>
-
-                <p
-                    style={{
-                        marginTop: 10,
-                        fontSize: '13px',
-                        lineHeight: 1.45,
-                        color: 'var(--text-secondary)',
-                    }}
-                >
-                    {brand.bio}
-                </p>
-
-                {/* Action Buttons: Add to My Feed + Visit site */}
-                <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
-                    <button
-                        type="button"
-                        onClick={() => setInFeed(!inFeed)}
-                        style={{
-                            flex: 1,
-                            padding: '10px 14px',
-                            borderRadius: 10,
-                            background: inFeed ? 'var(--locust-100)' : 'var(--terracotta-920)',
-                            color: inFeed ? 'var(--locust-800)' : '#ffffff',
-                            border: inFeed
-                                ? '1px solid var(--locust-400)'
-                                : '1px solid var(--terracotta-920)',
-                            fontSize: '12.5px',
-                            fontWeight: 600,
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: 6,
-                        }}
-                    >
-                        {inFeed ? <Check size={15} /> : <Plus size={15} />}
-                        <span>{inFeed ? 'Added to My Feed' : 'Add to My Feed'}</span>
-                    </button>
-
-                    <a
-                        href={brand.website_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="revclo-outline-btn"
-                        style={{ padding: '10px 14px', fontSize: '12.5px' }}
-                    >
-                        <span>Visit site</span>
-                        <ExternalLink size={13} />
-                    </a>
-                </div>
-
-                {/* Search Brand Input + Filter Row */}
-                <div style={{ marginTop: 14, display: 'flex', gap: 8 }}>
-                    <div className="revclo-search-pill" style={{ flex: 1 }}>
-                        <Search size={14} color="var(--text-muted)" />
-                        <input
-                            type="text"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder={`Search ${brand.name}...`}
-                            style={{
-                                border: 'none',
-                                outline: 'none',
-                                background: 'transparent',
-                                width: '100%',
-                                fontSize: '12.5px',
-                            }}
+            <main className="revclo-main-canvas px-4 md:px-0 pt-2">
+                {loading ? (
+                    <div className="py-24 flex flex-col items-center justify-center gap-3 text-[#5E5E5E]">
+                        <Loader2
+                            size={26}
+                            className="animate-spin text-[#532B21]"
                         />
+                        <p className="text-[13px]">Loading brand archive...</p>
                     </div>
-                    <button
-                        type="button"
-                        onClick={() => setIsFilterOpen(true)}
-                        className="revclo-outline-btn"
-                        style={{ padding: '0 12px', fontSize: '12px' }}
-                    >
-                        <SlidersHorizontal size={13} />
-                        <span>All Filters</span>
-                    </button>
-                </div>
-            </section>
+                ) : (
+                    <>
+                        {brand && (
+                            <section className="relative rounded-[22px] overflow-hidden border border-[#CDC8BF] bg-[#1E1410] text-white mb-8">
+                                <img
+                                    src={brand.hero_image_url}
+                                    alt={brand.name}
+                                    className="w-full h-[220px] md:h-[280px] object-cover opacity-55"
+                                />
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-black/20 p-5 md:p-8 flex flex-col justify-between">
+                                    <span className="self-start px-3 py-1 rounded-full bg-white/15 backdrop-blur-md border border-white/25 text-[11px] font-bold uppercase tracking-wider">
+                                        VERIFIED ARCHIVE LABEL • {products.length} PIECES
+                                    </span>
 
-            {/* Brand Catalog Grid */}
-            <div style={{ paddingTop: 16 }}>
-                <div className="revclo-product-grid">
-                    {filtered.map((product) => (
-                        <RevcloProductCard
-                            key={product.id}
-                            product={product}
-                            badgeMode="trust"
-                        />
-                    ))}
-                </div>
-            </div>
+                                    <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+                                        <div>
+                                            <h2 className="text-[28px] md:text-[38px] font-extrabold tracking-tight">
+                                                {brand.name}
+                                            </h2>
+                                            <p className="text-[13px] md:text-[14px] text-white/85 max-w-[560px] mt-1 leading-relaxed">
+                                                {brand.bio}
+                                            </p>
+                                        </div>
+
+                                        <div className="flex items-center gap-3 shrink-0">
+                                            <button
+                                                type="button"
+                                                onClick={handleFollow}
+                                                className={`px-5 py-2.5 rounded-full text-[12px] font-bold transition-all ${
+                                                    following
+                                                        ? 'bg-[#F2FEDF] text-[#007A00]'
+                                                        : 'bg-white text-[#161616]'
+                                                }`}
+                                            >
+                                                {following
+                                                    ? `Following (${followersCount})`
+                                                    : `Follow Brand (${followersCount})`}
+                                            </button>
+                                            {brand.website_url && (
+                                                <a
+                                                    href={brand.website_url}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                    className="px-4 py-2.5 rounded-full bg-white/15 hover:bg-white/25 backdrop-blur-md text-white text-[12px] font-semibold inline-flex items-center gap-1.5"
+                                                >
+                                                    <span>Website</span>
+                                                    <ExternalLink size={12} />
+                                                </a>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            </section>
+                        )}
+
+                        <div className="revclo-product-grid !px-0">
+                            {products.map((product) => (
+                                <RevcloProductCard
+                                    key={product.id}
+                                    product={product}
+                                    showPristineBadge
+                                    onToggleLike={handleLikeToggle}
+                                />
+                            ))}
+                        </div>
+                    </>
+                )}
+            </main>
 
             <FilterSortDrawer
-                isOpen={isFilterOpen}
-                onClose={() => setIsFilterOpen(false)}
-                initialFilters={filters}
-                onApply={(next) => setFilters(next)}
-                onClear={() => setFilters({ sortBy: 'trending' })}
+                open={filterOpen}
+                onClose={() => setFilterOpen(false)}
+                value={filters}
+                onChange={setFilters}
+                totalResults={products.length}
             />
-        </div>
+
+            <BottomNavbar
+                showFilterPill
+                onFilterClick={() => setFilterOpen(true)}
+            />
+        </>
     );
 }
