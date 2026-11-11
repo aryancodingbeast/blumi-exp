@@ -1,258 +1,383 @@
-import { getProductById, getRelatedProducts } from '@/actions/products'
-import Image from 'next/image'
-import { notFound, redirect } from 'next/navigation'
-import AddToCartButton from '@/components/AddToCartButton'
-import { Shield, Truck, Star, ArrowLeft } from 'lucide-react'
-import Link from 'next/link'
-import ProductCard from '@/components/ProductCard'
-import { auth } from '@/lib/auth'
-import { checkWaitlistEmail } from '@/actions/waitlist'
-import ProductImageGallery from '@/components/ProductImageGallery'
+'use client';
 
-export default async function ProductPage({ 
-    params,
-    searchParams
-}: { 
-    params: { id: string },
-    searchParams?: { [key: string]: string | string[] | undefined }
-}) {
-    // 1. Fetch product data and session in parallel (removes 1st-stage sequential block)
-    const [product, session] = await Promise.all([
-        getProductById(params.id),
-        auth()
-    ])
+import React, { useEffect, useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
+import {
+    ArrowLeft,
+    Check,
+    CheckCircle2,
+    Heart,
+    MessageCircle,
+    Share2,
+    ShieldCheck,
+    ShoppingBag,
+} from 'lucide-react';
+import { Product } from '@/types';
+import { getMarketplaceProductById, toggleProductLike } from '@/actions/marketplace';
+import { SEED_CREATORS, SEED_PRODUCTS } from '@/lib/revcloSeedData';
+import { useCart } from '@/components/CartContext';
+import RevcloProductCard from '@/components/revclo/RevcloProductCard';
 
-    if (!product) notFound()
+export default function ProductDetailPage() {
+    const params = useParams();
+    const router = useRouter();
+    const { addItem } = useCart();
 
-    const userEmail = session?.user?.email || ''
-    const userRole = session?.user?.role || ''
+    const productId = typeof params.id === 'string' ? params.id : 'prod-quilted-1';
+    const [product, setProduct] = useState<Product>(
+        SEED_PRODUCTS.find((p) => p.id === productId) || SEED_PRODUCTS[0]
+    );
+    const [selectedImg, setSelectedImg] = useState<number>(0);
+    const [liked, setLiked] = useState<boolean>(Boolean(product.is_liked));
+    const [addedToast, setAddedToast] = useState<boolean>(false);
 
-    // 2. Fetch related items and check waitlist status in parallel (removes 2nd-stage sequential block)
-    const [related, check] = await Promise.all([
-        getRelatedProducts(product.id),
-        userEmail ? checkWaitlistEmail(userEmail) : Promise.resolve({ success: true, isRegistered: false })
-    ])
-    
-    // Check waitlist status
-    let onWaitlist = false
-    if (check && check.success && check.isRegistered) {
-        onWaitlist = true
-    }
+    useEffect(() => {
+        getMarketplaceProductById(productId).then((res) => {
+            if (res) {
+                setProduct(res);
+                setLiked(Boolean(res.is_liked));
+            }
+        });
+    }, [productId]);
 
-    // Bypass drop lock for admin/seller testing or local development
-    const isBypass = userRole === 'SELLER' || userRole === 'ADMIN' || process.env.NODE_ENV === 'development' || searchParams?.bypass === 'true'
+    const seller =
+        SEED_CREATORS.find((c) => c.id === product.seller_id) || SEED_CREATORS[0];
 
-    // Drop time gates removed - immediately accessible to everyone
+    const handleAddToBag = () => {
+        addItem(product);
+        setAddedToast(true);
+        setTimeout(() => setAddedToast(false), 2000);
+    };
+
+    const handleLikeToggle = async () => {
+        setLiked(!liked);
+        await toggleProductLike(product.id);
+    };
+
+    const related = SEED_PRODUCTS.filter((p) => p.id !== product.id).slice(0, 4);
 
     return (
-        <div className="premium-dark-page">
-            <div style={{ maxWidth: '1440px', margin: '0 auto' }}>
-                {/* Breadcrumbs / Back */}
-                <Link href="/shop" style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.6rem',
-                    textDecoration: 'none',
-                    color: 'rgba(255, 255, 255, 0.4)',
-                    marginBottom: '3.5rem',
-                    fontSize: '0.72rem',
-                    fontWeight: 700,
-                    letterSpacing: '0.12em',
-                    fontFamily: "'Inter', sans-serif"
-                }}>
-                    <ArrowLeft size={14} style={{ color: '#d11a1a' }} /> RETURN TO COLLECTION
-                </Link>
+        <div style={{ minHeight: '100vh', paddingBottom: 110 }}>
+            {/* Top Header */}
+            <header className="revclo-page-header">
+                <button
+                    type="button"
+                    onClick={() => router.back()}
+                    className="revclo-icon-btn"
+                    aria-label="Back"
+                >
+                    <ArrowLeft size={17} />
+                </button>
+                <span className="revclo-page-title">{product.brand}</span>
+                <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                        type="button"
+                        onClick={handleLikeToggle}
+                        className="revclo-icon-btn"
+                        aria-label="Save item"
+                    >
+                        <Heart
+                            size={16}
+                            color={liked ? '#dc2626' : 'var(--text-ink)'}
+                            fill={liked ? '#dc2626' : 'none'}
+                        />
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            if (typeof navigator !== 'undefined' && navigator.clipboard) {
+                                navigator.clipboard.writeText(window.location.href);
+                            }
+                        }}
+                        className="revclo-icon-btn"
+                        aria-label="Share"
+                    >
+                        <Share2 size={16} />
+                    </button>
+                </div>
+            </header>
 
-                <div className="product-layout-grid" style={{
-                    display: 'grid',
-                    gridTemplateColumns: '1.1fr 0.9fr',
-                    gap: '5rem',
-                    alignItems: 'start'
-                }}>
-                    {/* Visual Section - Dynamic Interactive Gallery */}
-                    <div style={{ position: 'relative', width: '100%' }}>
-                        <ProductImageGallery images={product.images} title={product.title} />
-                        {product.status?.toUpperCase() === 'SOLD' && (
-                            <div style={{
-                                position: 'absolute',
-                                inset: 0,
-                                background: 'rgba(0,0,0,0.4)',
-                                backdropFilter: 'blur(3px)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                zIndex: 10,
-                                pointerEvents: 'none'
-                            }}>
-                                <span style={{
-                                    border: '3px solid #d11a1a',
-                                    color: '#d11a1a',
-                                    padding: '1rem 2.5rem',
-                                    fontWeight: 900,
-                                    fontFamily: "'Inter', sans-serif",
-                                    fontSize: '2rem',
-                                    letterSpacing: '0.2em',
-                                    textTransform: 'uppercase',
-                                    transform: 'rotate(-8deg)',
-                                    boxShadow: '0 0 40px rgba(209,26,26,0.3)',
-                                    background: '#020202'
-                                }}>
-                                    SOLD OUT
-                                </span>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Details Section - Sticky */}
-                    <div style={{ position: 'sticky', top: '10rem' }}>
-                        <div style={{ marginBottom: '3.5rem' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '1.2rem', marginBottom: '1.8rem' }}>
-                                <span style={{
-                                    fontFamily: "'Inter', sans-serif",
-                                    fontSize: '0.58rem',
-                                    fontWeight: 900,
-                                    letterSpacing: '0.15em',
-                                    color: product.status?.toUpperCase() === 'SOLD' ? '#d11a1a' : '#ffffff',
-                                    background: product.status?.toUpperCase() === 'SOLD' ? 'rgba(209, 26, 26, 0.08)' : 'rgba(255, 255, 255, 0.08)',
-                                    border: product.status?.toUpperCase() === 'SOLD' ? '1px solid rgba(209, 26, 26, 0.25)' : '1px solid rgba(255, 255, 255, 0.15)',
-                                    padding: '0.35rem 0.8rem',
-                                    textTransform: 'uppercase'
-                                }}>
-                                    {product.status?.toUpperCase() === 'SOLD' ? 'SOLD OUT' : `${product.status} EDITION`}
-                                </span>
-                                <div style={{ display: 'flex', gap: '0.2rem', color: '#d11a1a' }}>
-                                    {[1, 2, 3, 4, 5].map(i => <Star key={i} size={11} fill="currentColor" stroke="none" />)}
-                                </div>
-                            </div>
-
-                            <h1 style={{
-                                fontFamily: "var(--font-sans, 'Syne', sans-serif)",
-                                fontSize: 'clamp(2.5rem, 5vw, 4rem)',
-                                fontWeight: 900,
-                                textTransform: 'uppercase',
-                                color: '#ffffff',
-                                lineHeight: 1.05,
-                                letterSpacing: '-0.02em',
-                                marginBottom: '1.2rem'
-                            }}>{product.title}</h1>
-
-                            <p style={{
-                                fontFamily: "var(--font-mono, monospace)",
-                                fontSize: '2.4rem',
-                                fontWeight: 700,
-                                color: '#d11a1a',
-                                marginBottom: '2.5rem',
-                                letterSpacing: '-0.04em'
-                            }}>₹{product.price}</p>
-
-                            <div style={{ marginBottom: '3rem', borderTop: '1px solid rgba(255, 255, 255, 0.08)', paddingTop: '2rem' }}>
-                                <p style={{
-                                    fontFamily: "'Inter', sans-serif",
-                                    fontSize: '0.62rem',
-                                    color: 'rgba(255,255,255,0.4)',
-                                    letterSpacing: '0.15em',
-                                    textTransform: 'uppercase',
-                                    marginBottom: '0.8rem'
-                                }}>PRODUCT VIBE_</p>
-                                <p style={{
-                                    fontFamily: "'Inter', sans-serif",
-                                    fontSize: '0.95rem',
-                                    lineHeight: '1.8',
-                                    color: 'rgba(255, 255, 255, 0.7)'
-                                }}>
-                                    {product.description || 'A definitive streetwear essential, meticulously designed for dynamic visual impact and high-fashion comfort. This unique drop represents the pinnacle of circular design, blending raw brutalist proportions with custom fabric finishes.'}
-                                </p>
-                            </div>
-
-                            <div style={{
-                                borderTop: '1px solid rgba(255, 255, 255, 0.08)',
-                                paddingTop: '2rem',
-                                paddingBottom: '1rem',
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center'
-                            }}>
-                                <span style={{
-                                    fontFamily: "'Inter', sans-serif",
-                                    fontSize: '0.68rem',
-                                    fontWeight: 700,
-                                    color: 'rgba(255,255,255,0.4)',
-                                    letterSpacing: '0.1em'
-                                }}>
-                                    AVAILABLE SIZE
-                                </span>
-                                <span style={{
-                                    fontFamily: "var(--font-sans, 'Syne', sans-serif)",
-                                    fontSize: '1rem',
-                                    fontWeight: 800,
-                                    color: '#ffffff',
-                                    border: '1px solid #ffffff',
-                                    padding: '0.3rem 0.8rem'
-                                }}>
-                                    {product.description?.match(/\b(XS|S|M|L|XL|XXL)\b/i)?.[1]?.toUpperCase() || 'M'}
-                                </span>
-                            </div>
-
-                            <AddToCartButton product={product} />
-                        </div>
-
-                        {/* Meta Grid */}
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', borderTop: '1px solid rgba(255, 255, 255, 0.08)', paddingTop: '2.5rem' }}>
-                            <div style={{ padding: '1.8rem', background: '#030303', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
-                                <Truck size={18} style={{ color: '#d11a1a', marginBottom: '1rem' }} />
-                                <p style={{ fontWeight: 800, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#ffffff', marginBottom: '0.4rem' }}>Priority Shipping</p>
-                                <p style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.4)', lineHeight: 1.5 }}>2-4 business days global priority tracking.</p>
-                            </div>
-                            <div style={{ padding: '1.8rem', background: '#030303', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
-                                <Shield size={18} style={{ color: '#d11a1a', marginBottom: '1rem' }} />
-                                <p style={{ fontWeight: 800, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#ffffff', marginBottom: '0.4rem' }}>Verified Source</p>
-                                <p style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.4)', lineHeight: 1.5 }}>100% authenticity guaranteed by BLUMI.</p>
-                            </div>
-                        </div>
-                    </div>
+            {/* Primary Image Gallery */}
+            <div style={{ padding: '14px 16px 0' }}>
+                <div
+                    style={{
+                        position: 'relative',
+                        width: '100%',
+                        aspectRatio: '1 / 1.12',
+                        borderRadius: 16,
+                        overflow: 'hidden',
+                        background: 'var(--bg-card)',
+                        border: '1px solid var(--border-card)',
+                    }}
+                >
+                    <img
+                        src={
+                            product.images[selectedImg] ||
+                            product.images[0] ||
+                            '/figma/14bdb6af-eb9e-4d33-ba53-2b0e83cb8918.png'
+                        }
+                        alt={product.name}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    />
+                    <span className="revclo-trust-pill" style={{ top: 12, left: 12 }}>
+                        <span>{product.trust_score || 92}</span>
+                        <span>🔥</span>
+                    </span>
+                    <span
+                        className="revclo-pristine-pill"
+                        style={{ top: 12, right: 12, left: 'auto' }}
+                    >
+                        {product.condition}
+                    </span>
                 </div>
 
-                {/* Related Products Section */}
-                {related.length > 0 && (
-                    <div style={{ marginTop: '12rem', borderTop: '1px solid rgba(255, 255, 255, 0.08)', paddingTop: '6rem' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '4.5rem' }}>
-                            <div>
-                                <p style={{
-                                    fontFamily: "'Inter', sans-serif",
-                                    fontSize: '0.68rem',
-                                    fontWeight: 700,
-                                    letterSpacing: '0.2em',
-                                    textTransform: 'uppercase',
-                                    color: '#d11a1a',
-                                    marginBottom: '0.6rem'
-                                }}>
-                                    RECOMMENDATIONS_
-                                </p>
-                                <h2 style={{
-                                    fontFamily: "var(--font-sans, 'Syne', sans-serif)",
-                                    fontSize: 'clamp(2rem, 5vw, 3.2rem)',
-                                    fontWeight: 900,
-                                    textTransform: 'uppercase',
-                                    color: '#ffffff',
-                                    lineHeight: 1,
-                                    margin: 0
-                                }}>
-                                    YOU MIGHT ALSO LIKE
-                                </h2>
-                            </div>
-                        </div>
-                        <div style={{
-                            display: 'grid',
-                            gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))',
-                            gap: '4rem 2rem'
-                        }}>
-                            {related.map((p, i) => (
-                                <ProductCard key={p.id} product={p} index={i} />
-                            ))}
-                        </div>
+                {product.images.length > 1 && (
+                    <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                        {product.images.map((img, idx) => (
+                            <button
+                                key={idx}
+                                type="button"
+                                onClick={() => setSelectedImg(idx)}
+                                style={{
+                                    width: 60,
+                                    height: 64,
+                                    borderRadius: 10,
+                                    overflow: 'hidden',
+                                    border:
+                                        selectedImg === idx
+                                            ? '2px solid var(--terracotta-800)'
+                                            : '1px solid var(--border-card)',
+                                }}
+                            >
+                                <img
+                                    src={img}
+                                    alt=""
+                                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                />
+                            </button>
+                        ))}
                     </div>
                 )}
             </div>
+
+            {/* Title, Price & Specs */}
+            <div style={{ padding: '16px' }}>
+                <div
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                    }}
+                >
+                    <Link
+                        href={`/brand/${product.brand_slug || product.brand.toLowerCase()}`}
+                        style={{
+                            fontSize: '12px',
+                            fontWeight: 700,
+                            letterSpacing: '0.05em',
+                            textTransform: 'uppercase',
+                            color: 'var(--terracotta-800)',
+                        }}
+                    >
+                        {product.brand}
+                    </Link>
+                    <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                        Size: <strong style={{ color: 'var(--text-ink)' }}>{product.size}</strong>
+                    </span>
+                </div>
+
+                <h1 style={{ fontSize: '19px', fontWeight: 700, marginTop: 4 }}>
+                    {product.name}
+                </h1>
+
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginTop: 6 }}>
+                    <span style={{ fontSize: '22px', fontWeight: 700 }}>
+                        ₹{product.price.toLocaleString('en-IN')}
+                    </span>
+                    {product.original_price && (
+                        <span
+                            style={{
+                                fontSize: '13px',
+                                color: 'var(--text-muted)',
+                                textDecoration: 'line-through',
+                            }}
+                        >
+                            ₹{product.original_price.toLocaleString('en-IN')} retail
+                        </span>
+                    )}
+                </div>
+
+                <p
+                    style={{
+                        marginTop: 12,
+                        fontSize: '13px',
+                        lineHeight: 1.5,
+                        color: 'var(--text-secondary)',
+                    }}
+                >
+                    {product.description}
+                </p>
+
+                {/* AI Trust Score Verification Card */}
+                <div
+                    style={{
+                        marginTop: 16,
+                        padding: '14px',
+                        borderRadius: 14,
+                        background: 'var(--terracotta-950)',
+                        color: '#ffffff',
+                        border: '1px solid var(--terracotta-800)',
+                    }}
+                >
+                    <div
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            marginBottom: 8,
+                        }}
+                    >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <ShieldCheck size={17} color="#f59e0b" />
+                            <span style={{ fontSize: '13px', fontWeight: 700 }}>
+                                RevClo AI Trust Score: {product.trust_score || 92}/100 🔥
+                            </span>
+                        </div>
+                        <span
+                            style={{
+                                fontSize: '10px',
+                                padding: '2px 8px',
+                                borderRadius: 999,
+                                background: 'rgba(242,254,223,0.16)',
+                                color: '#b0c988',
+                                fontWeight: 600,
+                            }}
+                        >
+                            Verified Piece
+                        </span>
+                    </div>
+
+                    <div
+                        style={{
+                            display: 'grid',
+                            gridTemplateColumns: '1fr 1fr',
+                            gap: 6,
+                            fontSize: '11.5px',
+                            color: 'var(--terracotta-200)',
+                        }}
+                    >
+                        <span>✓ Photo Consistency</span>
+                        <span>✓ Brand Tag Verified</span>
+                        <span>✓ Condition: {product.condition}</span>
+                        <span>✓ Escrow Protected</span>
+                    </div>
+                </div>
+
+                {/* Seller Closet Card */}
+                <div
+                    style={{
+                        marginTop: 14,
+                        padding: '12px 14px',
+                        borderRadius: 14,
+                        background: '#ffffff',
+                        border: '1px solid var(--border-card)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                    }}
+                >
+                    <Link
+                        href={`/creator/${seller.handle}`}
+                        style={{ display: 'flex', alignItems: 'center', gap: 10 }}
+                    >
+                        <img
+                            src={seller.avatar}
+                            alt={seller.name}
+                            style={{
+                                width: 42,
+                                height: 42,
+                                borderRadius: 999,
+                                objectFit: 'cover',
+                            }}
+                        />
+                        <div>
+                            <div
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 5,
+                                    fontSize: '13.5px',
+                                    fontWeight: 700,
+                                }}
+                            >
+                                <span>{seller.name}</span>
+                                <CheckCircle2 size={14} color="var(--terracotta-800)" />
+                            </div>
+                            <div style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>
+                                @{seller.handle} • Ships in 24 hrs
+                            </div>
+                        </div>
+                    </Link>
+
+                    <Link
+                        href="/chat/conv-1"
+                        className="revclo-outline-btn"
+                        style={{ padding: '7px 12px', fontSize: '12px' }}
+                    >
+                        <MessageCircle size={14} />
+                        <span>Ask seller</span>
+                    </Link>
+                </div>
+            </div>
+
+            {/* More From This Edit */}
+            <section className="revclo-section" style={{ marginTop: 8 }}>
+                <div className="revclo-section-header">
+                    <h2 className="revclo-section-title">Similar Archive Finds</h2>
+                </div>
+                <div className="revclo-product-grid">
+                    {related.map((item) => (
+                        <RevcloProductCard key={item.id} product={item} badgeMode="trust" />
+                    ))}
+                </div>
+            </section>
+
+            {/* Sticky Bottom Add to Bag / Buy Bar */}
+            <div
+                style={{
+                    position: 'fixed',
+                    bottom: 0,
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    width: '100%',
+                    maxWidth: 460,
+                    padding: '12px 16px',
+                    background: '#ffffff',
+                    borderTop: '1px solid var(--border-sand)',
+                    display: 'flex',
+                    gap: 10,
+                    zIndex: 70,
+                }}
+            >
+                <Link
+                    href="/chat/conv-1"
+                    className="revclo-outline-btn"
+                    style={{ flex: 0.9, padding: '12px' }}
+                >
+                    <MessageCircle size={16} />
+                    <span>Make Offer</span>
+                </Link>
+                <button
+                    type="button"
+                    onClick={handleAddToBag}
+                    className="revclo-primary-btn"
+                    style={{ flex: 1.4, padding: '12px' }}
+                >
+                    {addedToast ? <Check size={16} /> : <ShoppingBag size={16} />}
+                    <span>{addedToast ? 'Added to Bag!' : 'Add to Bag'}</span>
+                </button>
+            </div>
         </div>
-    )
+    );
 }

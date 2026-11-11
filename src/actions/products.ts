@@ -1,306 +1,201 @@
-'use server'
+'use server';
 
-import { supabase, handleSupabaseError } from '@/lib/supabase'
-import { supabaseAdmin } from '@/lib/supabaseAdmin'
-import { Product, ProductStatus } from '@/types'
-import { revalidatePath } from 'next/cache'
-import { auth } from '@/lib/auth'
-import crypto from 'crypto'
+import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { auth } from '@/lib/auth';
+import { Product } from '@/types';
+import { revalidatePath } from 'next/cache';
+import {
+    createRevcloListing,
+    getMarketplaceProductById,
+    getMarketplaceProducts,
+} from '@/actions/marketplace';
+import { DEFAULT_DEMO_USER } from '@/lib/revcloSeedData';
 
-export async function getProducts() {
-    let retries = 3
-    let delay = 1500
+export async function getProducts(filters?: {
+    category?: string;
+    size?: string;
+    minPrice?: number;
+    maxPrice?: number;
+    condition?: string;
+    search?: string;
+    shopId?: string;
+    sellerId?: string;
+    department?: 'Women' | 'Men' | 'Kids' | 'All';
+    sortBy?: 'trending' | 'price_asc' | 'price_desc' | 'newest' | 'trust_score';
+}) {
+    const products = await getMarketplaceProducts({
+        category: filters?.category,
+        sizes: filters?.size && filters.size !== 'All' ? [filters.size] : undefined,
+        minPrice: filters?.minPrice,
+        maxPrice: filters?.maxPrice,
+        conditions: filters?.condition ? [filters.condition] : undefined,
+        query: filters?.search,
+        department: filters?.department,
+        sortBy: filters?.sortBy,
+    });
 
-    while (retries > 0) {
-        try {
-            const { data, error } = await supabaseAdmin
-                .from('products')
-                .select('id, title, description, price, images, status, size, category, condition, brand, available_for_exchange, seller_id, created_at')
-                .in('status', ['ACTIVE', 'SOLD'])
-                .order('created_at', { ascending: false })
-
-            if (error) {
-                if (error.message && error.message.includes('statement timeout') && retries > 1) {
-                    console.warn(`[getProducts] Supabase warming up. Retrying... (${retries - 1} retries left)`)
-                    retries--
-                    await new Promise(resolve => setTimeout(resolve, delay))
-                    continue
-                }
-                handleSupabaseError(error)
-            }
-            return data as Product[]
-        } catch (err: any) {
-            if (err.message && err.message.includes('statement timeout') && retries > 1) {
-                console.warn(`[getProducts] Catch statement timeout. Retrying... (${retries - 1} retries left)`)
-                retries--
-                await new Promise(resolve => setTimeout(resolve, delay))
-                continue
-            }
-            throw err
-        }
+    if (filters?.sellerId) {
+        const bySeller = products.filter((p) => p.seller_id === filters.sellerId);
+        return bySeller.length > 0 ? bySeller : products;
     }
-    return [] as Product[]
+
+    return products;
 }
 
 export async function searchProducts(query: string) {
-    if (!query || query.length < 2) return []
-
-    const { data, error } = await supabaseAdmin
-        .from('products')
-        .select('id, title, description, price, images, status, size, category, condition, brand, available_for_exchange, seller_id, created_at')
-        .in('status', ['ACTIVE', 'SOLD'])
-        .or(`title.ilike.%${query}%,description.ilike.%${query}%`)
-        .limit(10)
-
-    if (error) handleSupabaseError(error)
-    return data as Product[]
+    if (!query || query.length < 2) return [];
+    return getMarketplaceProducts({ query });
 }
 
 export async function getProductById(id: string) {
-    const { data, error } = await supabaseAdmin
-        .from('products')
-        .select('*')
-        .eq('id', id)
-        .single()
-
-    if (error) handleSupabaseError(error)
-    return data as Product
+    return getMarketplaceProductById(id);
 }
 
-export async function getRelatedProducts(productId: string) {
-    const { data, error } = await supabaseAdmin
-        .from('products')
-        .select('id, title, description, price, images, status, size, category, condition, brand, available_for_exchange, seller_id, created_at')
-        .in('status', ['ACTIVE', 'SOLD'])
-        .neq('id', productId)
-        .limit(4)
-
-    if (error) handleSupabaseError(error)
-    return data as Product[]
-}
-
-async function uploadBase64ToStorage(base64Str: string, productId: string, index: number): Promise<string> {
-    if (!base64Str || !base64Str.startsWith('data:image')) {
-        return base64Str
+export async function createProduct(
+    productData:
+        | FormData
+        | {
+              name?: string;
+              title?: string;
+              brand?: string;
+              price: number;
+              original_price?: number;
+              images: string[];
+              size?: string;
+              condition?: string;
+              category?: string;
+              sub_category?: string;
+              department?: 'Women' | 'Men' | 'Kids';
+              description?: string;
+              measurements?: Record<string, string>;
+              ai_metadata?: Record<string, unknown>;
+              shop_id?: string;
+          }
+): Promise<{ success: boolean; data?: Product; product?: Product; error?: string }> {
+    let sellerId = DEFAULT_DEMO_USER.id;
+    try {
+        const session = await auth();
+        if (session?.user?.id) sellerId = session.user.id;
+    } catch {
+        // fallback to demo user
     }
 
-    try {
-        const matches = base64Str.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.*)$/)
-        if (!matches || matches.length !== 3) {
-            throw new Error('Invalid base64 format')
-        }
+    const parsed =
+        productData instanceof FormData
+            ? {
+                  name: (productData.get('title') as string) || 'Archive Piece',
+                  brand: (productData.get('brand') as string) || 'QUILTED',
+                  price: Number(productData.get('price')) || 450,
+                  size: (productData.get('size') as string) || 'M',
+                  condition: (productData.get('condition') as string) || 'Pristine',
+                  category: (productData.get('category') as string) || 'Accessories',
+                  description: (productData.get('description') as string) || '',
+                  images: JSON.parse((productData.get('images') as string) || '[]') as string[],
+              }
+            : productData;
 
-        const contentType = matches[1]
-        const base64Data = matches[2]
-        const buffer = Buffer.from(base64Data, 'base64')
-        
-        const fileExtension = contentType.split('/')[1] || 'webp'
-        const fileName = `${productId}/${index}.${fileExtension}`
-        
-        const { error } = await supabaseAdmin
-            .storage
-            .from('products')
-            .upload(fileName, buffer, {
-                contentType: contentType,
-                upsert: true
-            })
+    const validConditions = ['Pristine', 'Excellent', 'Good', 'Well-loved'] as const;
+    const mappedCondition = validConditions.includes(
+        parsed.condition as (typeof validConditions)[number]
+    )
+        ? (parsed.condition as (typeof validConditions)[number])
+        : 'Pristine';
 
-        if (error) {
-            console.error('[uploadBase64ToStorage] Upload error:', error)
-            throw error
-        }
+    const result = await createRevcloListing({
+        name: parsed.name || ('title' in parsed ? parsed.title : undefined) || 'Archive Piece',
+        brand: parsed.brand || 'QUILTED',
+        price: parsed.price,
+        size: parsed.size || 'M',
+        condition: mappedCondition,
+        category: parsed.category || 'Accessories',
+        sub_category: 'sub_category' in parsed ? parsed.sub_category : undefined,
+        department: 'department' in parsed ? parsed.department : undefined,
+        description: parsed.description,
+        images: parsed.images,
+        seller_id: sellerId,
+    });
 
-        const { data: { publicUrl } } = supabaseAdmin
-            .storage
-            .from('products')
-            .getPublicUrl(fileName)
-
-        return publicUrl
-    } catch (err) {
-        console.error('[uploadBase64ToStorage] Failed to upload image:', err)
-        return base64Str
-    }
+    revalidatePath('/shop');
+    revalidatePath('/closet');
+    revalidatePath('/');
+    return { success: true, data: result.product, product: result.product };
 }
 
-/**
- * Create a product with full swap-platform fields.
- * Used by the /closet/add listing form.
- */
-export async function createProduct(formData: FormData): Promise<{ success: boolean; data?: Product; error?: string }> {
+export async function getUserProducts(userId?: string): Promise<Product[]> {
+    const all = await getMarketplaceProducts();
+    if (!userId) return all;
+    const filtered = all.filter((p) => p.seller_id === userId);
+    return filtered.length > 0 ? filtered : all;
+}
+
+export async function getExchangeableProducts(): Promise<Product[]> {
+    return getMarketplaceProducts();
+}
+
+export async function getSellerProducts(userId: string): Promise<Product[]> {
+    return getUserProducts(userId);
+}
+
+export async function adminCreateProduct(
+    password: string,
+    productDetails: {
+        title: string;
+        description: string;
+        price: number;
+        imageUrls: string[];
+    }
+): Promise<Product> {
+    if (password !== '89078') {
+        throw new Error('UNAUTHORIZED: INVALID ACCESS CODE.');
+    }
+    const res = await createRevcloListing({
+        name: productDetails.title,
+        brand: 'QUILTED',
+        price: productDetails.price,
+        size: 'M',
+        condition: 'Pristine',
+        category: 'Accessories',
+        description: productDetails.description,
+        images: productDetails.imageUrls,
+    });
+    return res.product;
+}
+
+export async function updateProductStatus(
+    productId: string,
+    status: 'available' | 'sold' | 'reserved' | 'inactive'
+) {
     try {
-        const session = await auth()
-        if (!session?.user?.id) {
-            return { success: false, error: 'You must be logged in to list an item.' }
-        }
-        const userId = session.user.id
-
-        const title = formData.get('title') as string
-        const description = formData.get('description') as string
-        const price = parseFloat(formData.get('price') as string || '0')
-        const images = JSON.parse(formData.get('images') as string || '[]') as string[]
-        const size = (formData.get('size') as string) || 'Free Size'
-        const category = (formData.get('category') as string) || 'Tops'
-        const condition = (formData.get('condition') as string) || 'Good'
-        const brand = (formData.get('brand') as string) || ''
-
-        if (images.length < 4) {
-            return { success: false, error: 'Please upload at least 4 images.' }
-        }
-
-        const productId = crypto.randomUUID()
-        const uploadedUrls: string[] = []
-
-        for (let i = 0; i < images.length; i++) {
-            const url = await uploadBase64ToStorage(images[i], productId, i)
-            uploadedUrls.push(url)
-        }
-
         const { data, error } = await supabaseAdmin
             .from('products')
-            .insert({
-                id: productId,
-                title,
-                description,
-                price,
-                images: uploadedUrls,
-                seller_id: userId,
-                status: 'ACTIVE' as ProductStatus,
-                size,
-                category,
-                condition,
-                brand,
-                available_for_exchange: true
-            })
+            .update({ status })
+            .eq('id', productId)
             .select()
-            .single()
+            .single();
 
-        if (error) {
-            console.error('[createProduct] Database insert error:', error)
-            if (error.message && (error.message.includes('column "size"') || error.message.includes('column "available_for_exchange"'))) {
-                return {
-                    success: false,
-                    error: 'Database schema is not updated. Please execute the SQL migration commands in "src/db/migration.sql" in your Supabase SQL Editor first.'
-                }
-            }
-            return { success: false, error: error.message || 'An unexpected error occurred.' }
+        if (!error && data) {
+            revalidatePath('/shop');
+            revalidatePath('/closet');
+            revalidatePath(`/product/${productId}`);
+            return data as Product;
         }
-
-        revalidatePath('/')
-        revalidatePath('/closet')
-        revalidatePath('/seller')
-        return { success: true, data: data as Product }
-    } catch (err: any) {
-        console.error('[createProduct] Unhandled error:', err)
-        return { success: false, error: err.message || 'Failed to list item.' }
+    } catch {
+        // fallback
     }
+    return null;
 }
 
-/**
- * Get all products listed by a specific user (for "My Closet")
- */
-export async function getUserProducts(userId?: string): Promise<Product[]> {
-    const session = await auth()
-    const targetUserId = userId || session?.user?.id
-    if (!targetUserId) return []
-
-    const { data, error } = await supabaseAdmin
-        .from('products')
-        .select('*')
-        .eq('seller_id', targetUserId)
-        .in('status', ['ACTIVE', 'EXCHANGED'])
-        .order('created_at', { ascending: false })
-
-    if (error) {
-        console.error('[getUserProducts] Error:', error)
-        return []
-    }
-    return data as Product[]
-}
-
-/**
- * Get user's products that are available for exchange (for the exchange selector)
- */
-export async function getExchangeableProducts(): Promise<Product[]> {
-    const session = await auth()
-    if (!session?.user?.id) return []
-
-    const { data, error } = await supabaseAdmin
-        .from('products')
-        .select('*')
-        .eq('seller_id', session.user.id)
-        .eq('status', 'ACTIVE')
-        .eq('available_for_exchange', true)
-        .order('created_at', { ascending: false })
-
-    if (error) {
-        console.error('[getExchangeableProducts] Error:', error)
-        return []
-    }
-    return data as Product[]
-}
-
-export async function getSellerProducts(userId: string) {
-    const { data, error } = await supabaseAdmin
-        .from('products')
-        .select('*')
-        .eq('seller_id', userId)
-        .order('created_at', { ascending: false })
-
-    if (error) handleSupabaseError(error)
-    return data as Product[]
-}
-
-export async function adminCreateProduct(password: string, productDetails: {
-    title: string
-    description: string
-    price: number
-    imageUrls: string[]
-}) {
-    if (password !== '89078') {
-        throw new Error('UNAUTHORIZED: INVALID ACCESS CODE.')
-    }
-
-    // Find the first registered seller id to link dynamically
-    let sellerId = '854a48cd-d31e-4a7e-a622-58d1f44b73d8' // Default fallback
+export async function deleteProduct(productId: string) {
     try {
-        const { data: sellers } = await supabaseAdmin
-            .from('profiles')
-            .select('id')
-            .eq('role', 'SELLER')
-            .limit(1)
-
-        if (sellers && sellers.length > 0) {
-            sellerId = sellers[0].id
-        }
-    } catch (e) {
-        console.error('Failed to resolve seller profiles for admin insert:', e)
+        await supabaseAdmin.from('products').delete().eq('id', productId);
+    } catch {
+        // fallback
     }
+    revalidatePath('/shop');
+    revalidatePath('/closet');
+    return true;
+}
 
-    const productId = crypto.randomUUID()
-    const uploadedUrls: string[] = []
-
-    for (let i = 0; i < productDetails.imageUrls.length; i++) {
-        const url = await uploadBase64ToStorage(productDetails.imageUrls[i], productId, i)
-        uploadedUrls.push(url)
-    }
-
-    const { data, error } = await supabaseAdmin
-        .from('products')
-        .insert({
-            id: productId,
-            title: productDetails.title,
-            description: productDetails.description,
-            price: productDetails.price,
-            images: uploadedUrls && uploadedUrls.length > 0 ? uploadedUrls : ['/collage-1.webp'],
-            seller_id: sellerId,
-            status: 'ACTIVE' as ProductStatus
-        })
-        .select()
-        .single()
-
-    if (error) handleSupabaseError(error)
-
-    revalidatePath('/')
-    revalidatePath('/shop')
-    return data as Product
+export async function getPersonalizedFeed() {
+    return getMarketplaceProducts({ sortBy: 'trending' });
 }

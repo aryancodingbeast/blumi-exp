@@ -8,7 +8,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
         persistSession: false
     },
     global: {
-        fetch: (url, options) => fetch(url, { ...options, cache: 'no-store' })
+        fetch: ((url, options) => fetch(url, { ...options, cache: 'no-store' })) as typeof fetch
     }
 })
 
