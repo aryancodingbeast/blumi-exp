@@ -32,15 +32,37 @@ export default function DesktopNavbar() {
 
     useEffect(() => {
         let active = true;
+        try {
+            const cached = sessionStorage.getItem('revclo_user_cache');
+            if (cached) {
+                const parsed = JSON.parse(cached);
+                if (parsed && Date.now() - (parsed.ts || 0) < 60_000) {
+                    setProfile(parsed.user || null);
+                    return;
+                }
+            }
+        } catch {
+            // ignore storage errors
+        }
+
         getCurrentUser()
             .then((u) => {
-                if (active) setProfile(u);
+                if (!active) return;
+                setProfile(u);
+                try {
+                    sessionStorage.setItem(
+                        'revclo_user_cache',
+                        JSON.stringify({ user: u, ts: Date.now() })
+                    );
+                } catch {
+                    // ignore
+                }
             })
             .catch(() => {});
         return () => {
             active = false;
         };
-    }, [pathname]);
+    }, []);
 
     const handleSearchSubmit = (e: React.FormEvent) => {
         e.preventDefault();

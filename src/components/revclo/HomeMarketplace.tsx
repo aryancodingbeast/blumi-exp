@@ -65,6 +65,7 @@ export default function HomeMarketplace({
     const [searchInput, setSearchInput] = useState('');
     const [filterOpen, setFilterOpen] = useState(false);
     const [filters, setFilters] = useState<FilterSortState>(DEFAULT_FILTERS);
+    const [visibleRecommended, setVisibleRecommended] = useState(12);
 
     const handleLikeToggle = async (productId: string, nextLiked: boolean) => {
         setProducts((prev) =>
@@ -167,16 +168,21 @@ export default function HomeMarketplace({
     }, [products, department, filters]);
 
     const topPicks = useMemo(
-        () => filteredProducts.slice(0, 10),
+        () => filteredProducts.slice(0, 8),
+        [filteredProducts]
+    );
+
+    const allRecommendedItems = useMemo(
+        () =>
+            filteredProducts.length > 8
+                ? filteredProducts.slice(8)
+                : filteredProducts,
         [filteredProducts]
     );
 
     const recommendedItems = useMemo(
-        () =>
-            filteredProducts.length > 10
-                ? filteredProducts.slice(10, 30)
-                : filteredProducts,
-        [filteredProducts]
+        () => allRecommendedItems.slice(0, visibleRecommended),
+        [allRecommendedItems, visibleRecommended]
     );
 
     const loopHighlightItems = useMemo(
@@ -713,6 +719,21 @@ export default function HomeMarketplace({
                                     />
                                 ))}
                             </div>
+                            {visibleRecommended < allRecommendedItems.length && (
+                                <div className="mt-6 flex justify-center px-4">
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            setVisibleRecommended((prev) => prev + 16)
+                                        }
+                                        className="px-6 py-2.5 rounded-full bg-white border border-[#CDC8BF] hover:border-[#532B21] text-[13px] font-semibold text-[#161616] transition-all shadow-sm"
+                                    >
+                                        Load More Pieces (
+                                        {allRecommendedItems.length - visibleRecommended}{' '}
+                                        remaining)
+                                    </button>
+                                </div>
+                            )}
                         </section>
                     </>
                 ) : (

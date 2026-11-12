@@ -252,12 +252,24 @@ export default function GuidedGarmentScannerModal({
         const video = videoRef.current;
         const canvas = canvasRef.current;
         if (cameraActive && video && canvas && video.videoWidth > 0) {
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
+            const maxDim = 1080;
+            let width = video.videoWidth;
+            let height = video.videoHeight;
+            if (width > maxDim || height > maxDim) {
+                if (width >= height) {
+                    height = Math.round((height * maxDim) / width);
+                    width = maxDim;
+                } else {
+                    width = Math.round((width * maxDim) / height);
+                    height = maxDim;
+                }
+            }
+            canvas.width = width;
+            canvas.height = height;
             const ctx = canvas.getContext('2d');
             if (ctx) {
-                ctx.drawImage(video, 0, 0);
-                const base64 = canvas.toDataURL('image/jpeg', 0.86);
+                ctx.drawImage(video, 0, 0, width, height);
+                const base64 = canvas.toDataURL('image/jpeg', 0.76);
                 validateAndAdvance(base64);
                 return;
             }
@@ -272,7 +284,33 @@ export default function GuidedGarmentScannerModal({
         const reader = new FileReader();
         reader.onload = () => {
             if (typeof reader.result === 'string') {
-                validateAndAdvance(reader.result);
+                const rawUrl = reader.result;
+                const img = new Image();
+                img.onload = () => {
+                    const maxDim = 1080;
+                    let { width, height } = img;
+                    if (width > maxDim || height > maxDim) {
+                        if (width >= height) {
+                            height = Math.round((height * maxDim) / width);
+                            width = maxDim;
+                        } else {
+                            width = Math.round((width * maxDim) / height);
+                            height = maxDim;
+                        }
+                    }
+                    const offscreen = document.createElement('canvas');
+                    offscreen.width = width;
+                    offscreen.height = height;
+                    const ctx = offscreen.getContext('2d');
+                    if (ctx) {
+                        ctx.drawImage(img, 0, 0, width, height);
+                        validateAndAdvance(offscreen.toDataURL('image/jpeg', 0.76));
+                    } else {
+                        validateAndAdvance(rawUrl);
+                    }
+                };
+                img.onerror = () => validateAndAdvance(rawUrl);
+                img.src = rawUrl;
             }
         };
         reader.readAsDataURL(file);

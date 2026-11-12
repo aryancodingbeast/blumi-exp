@@ -63,6 +63,7 @@ export default function RevcloProductCard({
                         alt={product.title || product.name}
                         className="revclo-card-img"
                         loading="lazy"
+                        decoding="async"
                     />
                 )}
 

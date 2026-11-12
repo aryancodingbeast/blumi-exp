@@ -144,18 +144,51 @@ export default function SellFlowPage() {
         }
     };
 
+    const compressFileToDataUrl = (file: File): Promise<string> =>
+        new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+                const rawUrl = String(reader.result || '');
+                if (!rawUrl) {
+                    resolve('');
+                    return;
+                }
+                const img = new Image();
+                img.onload = () => {
+                    const maxDim = 1080;
+                    let { width, height } = img;
+                    if (width > maxDim || height > maxDim) {
+                        if (width >= height) {
+                            height = Math.round((height * maxDim) / width);
+                            width = maxDim;
+                        } else {
+                            width = Math.round((width * maxDim) / height);
+                            height = maxDim;
+                        }
+                    }
+                    const canvas = document.createElement('canvas');
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    if (!ctx) {
+                        resolve(rawUrl);
+                        return;
+                    }
+                    ctx.drawImage(img, 0, 0, width, height);
+                    resolve(canvas.toDataURL('image/jpeg', 0.76));
+                };
+                img.onerror = () => resolve(rawUrl);
+                img.src = rawUrl;
+            };
+            reader.onerror = () => resolve('');
+            reader.readAsDataURL(file);
+        });
+
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = e.target.files;
         if (!files || files.length === 0) return;
 
-        const readers = Array.from(files).map(
-            (file) =>
-                new Promise<string>((resolve) => {
-                    const reader = new FileReader();
-                    reader.onload = () => resolve(String(reader.result || ''));
-                    reader.readAsDataURL(file);
-                })
-        );
+        const readers = Array.from(files).map((file) => compressFileToDataUrl(file));
 
         Promise.all(readers).then((newUrls) => {
             const valid = newUrls.filter(Boolean);

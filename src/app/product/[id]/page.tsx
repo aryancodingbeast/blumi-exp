@@ -20,8 +20,7 @@ import {
 } from 'lucide-react';
 import { Product } from '@/types';
 import {
-    getMarketplaceProductById,
-    getMarketplaceProducts,
+    getProductDetailBundle,
     startOrGetConversation,
     toggleProductLike,
 } from '@/actions/marketplace';
@@ -51,35 +50,14 @@ export default function ProductDetailPage() {
     useEffect(() => {
         let active = true;
         setLoading(true);
-        Promise.all([
-            getMarketplaceProductById(productId),
-            getMarketplaceProducts({ sortBy: 'trending' }),
-        ])
-            .then(([found, all]) => {
+        getProductDetailBundle(productId)
+            .then(({ product: resolved, sellerOtherItems: sellerItems, related: relatedItems }) => {
                 if (!active) return;
-                const resolved = found || all[0] || null;
                 setProduct(resolved);
                 if (resolved) {
                     setOfferAmount(Math.max(99, Math.round(resolved.price * 0.88)));
-                    setSellerOtherItems(
-                        all
-                            .filter(
-                                (p) =>
-                                    p.seller_id === resolved.seller_id &&
-                                    p.id !== resolved.id
-                            )
-                            .slice(0, 5)
-                    );
-                    setRelated(
-                        all
-                            .filter(
-                                (p) =>
-                                    p.id !== resolved.id &&
-                                    (p.category === resolved.category ||
-                                        p.brand === resolved.brand)
-                            )
-                            .slice(0, 10)
-                    );
+                    setSellerOtherItems(sellerItems);
+                    setRelated(relatedItems);
                 }
             })
             .finally(() => {

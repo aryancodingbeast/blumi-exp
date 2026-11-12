@@ -50,17 +50,17 @@ export default function BrandDetailPage() {
         Promise.all([
             getBrandBySlug(slug),
             getMarketplaceProducts({ brandSlug: slug }),
-            getMarketplaceProducts({ sortBy: 'trending' }),
         ])
-            .then(([foundBrand, brandProducts, allProducts]) => {
+            .then(async ([foundBrand, brandProducts]) => {
                 if (!active) return;
                 setBrand(foundBrand);
                 setFollowersCount(foundBrand?.followers_count || 180);
-                setProducts(
-                    brandProducts.length > 0
-                        ? brandProducts
-                        : allProducts.slice(0, 12)
-                );
+                if (brandProducts.length > 0) {
+                    setProducts(brandProducts);
+                } else {
+                    const fallback = await getMarketplaceProducts({ sortBy: 'trending' });
+                    if (active) setProducts(fallback.slice(0, 12));
+                }
             })
             .finally(() => {
                 if (active) setLoading(false);

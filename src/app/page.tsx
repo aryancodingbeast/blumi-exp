@@ -1,28 +1,18 @@
 import React from 'react';
 import HomeMarketplace from '@/components/revclo/HomeMarketplace';
-import {
-    getBrands,
-    getCollections,
-    getConversations,
-    getCreators,
-    getCurrentUser,
-    getMarketplaceProducts,
-} from '@/actions/marketplace';
+import { getHomePageBundle } from '@/actions/marketplace';
 
-export const dynamic = 'force-dynamic';
+export const revalidate = 60;
 
 export default async function HomePage() {
-    const [products, brands, collections, creators, conversations, currentUser] =
-        await Promise.all([
-            getMarketplaceProducts({ sortBy: 'trending' }),
-            getBrands(),
-            getCollections(),
-            getCreators(),
-            getConversations('all'),
-            getCurrentUser(),
-        ]);
-
-    const unreadCount = conversations.reduce((sum, c) => sum + c.unread_count, 0);
+    const {
+        products,
+        brands,
+        collections,
+        creators,
+        unreadChatsCount,
+        currentUser,
+    } = await getHomePageBundle();
 
     return (
         <HomeMarketplace
@@ -30,7 +20,7 @@ export default async function HomePage() {
             brands={brands}
             collections={collections}
             creators={creators}
-            unreadChatsCount={unreadCount}
+            unreadChatsCount={unreadChatsCount}
             currentUser={currentUser}
         />
     );

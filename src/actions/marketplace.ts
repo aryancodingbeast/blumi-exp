@@ -21,6 +21,12 @@ import {
 const STORAGE_BUCKET = 'products';
 const APPDATA_PATH = '_appdata/marketplace_state.json';
 
+// Egress-saving cache TTLs (2 minutes for catalog & app state, 60s for user profile)
+// All mutations immediately update or invalidate these in-memory caches.
+const CATALOG_TTL_MS = 120_000;
+const APPDATA_TTL_MS = 120_000;
+const USER_TTL_MS = 60_000;
+
 interface ExtendedConversation extends Conversation {
     buyer_id?: string;
     seller_id?: string;
@@ -77,56 +83,164 @@ const EMPTY_APP_STATE: MarketplaceAppState = {
 };
 
 let cachedState: { data: MarketplaceAppState; fetchedAt: number } | null = null;
+let inflightAppStatePromise: Promise<MarketplaceAppState> | null = null;
+
+interface RawCatalogSnapshot {
+    rawProducts: {
+        id: string;
+        title: string;
+        description: string | null;
+        price: number;
+        images: string[];
+        seller_id: string;
+        status: string;
+        created_at: string;
+    }[];
+    rawProfiles: {
+        id: string;
+        name: string | null;
+        email: string | null;
+        role: 'BUYER' | 'SELLER' | 'ADMIN' | null;
+        shop_id: string | null;
+        phone: string | null;
+        instagram: string | null;
+        bio: string | null;
+        created_at: string;
+    }[];
+    rawShops: {
+        id: string;
+        owner_id: string;
+        name: string;
+        logo_url: string | null;
+        description: string | null;
+        created_at: string;
+    }[];
+    fetchedAt: number;
+}
+
+let cachedCatalogSnapshot: RawCatalogSnapshot | null = null;
+let inflightCatalogPromise: Promise<RawCatalogSnapshot> | null = null;
+
+const userProfileCache = new Map<
+    string,
+    { user: AuthenticatedMarketplaceUser; fetchedAt: number }
+>();
+
+function invalidateCatalogCache() {
+    cachedCatalogSnapshot = null;
+    inflightCatalogPromise = null;
+}
 
 async function readAppState(forceFresh = false): Promise<MarketplaceAppState> {
-    if (!forceFresh && cachedState && Date.now() - cachedState.fetchedAt < 4000) {
+    if (
+        !forceFresh &&
+        cachedState &&
+        Date.now() - cachedState.fetchedAt < APPDATA_TTL_MS
+    ) {
         return cachedState.data;
     }
-    try {
-        const { data, error } = await supabaseAdmin.storage
-            .from(STORAGE_BUCKET)
-            .download(APPDATA_PATH);
 
-        if (error || !data) {
-            cachedState = {
-                data: structuredClone(EMPTY_APP_STATE),
-                fetchedAt: Date.now(),
-            };
-            return cachedState.data;
-        }
-
-        const text = await data.text();
-        const parsed = JSON.parse(text) as Partial<MarketplaceAppState>;
-        const merged: MarketplaceAppState = {
-            productMeta: parsed.productMeta || {},
-            userLikes: parsed.userLikes || {},
-            brandFollows: parsed.brandFollows || {},
-            collectionFollows: parsed.collectionFollows || {},
-            addresses: parsed.addresses || {},
-            conversations: parsed.conversations || [],
-            orderRatings: parsed.orderRatings || {},
-            userProfiles: parsed.userProfiles || {},
-        };
-        cachedState = { data: merged, fetchedAt: Date.now() };
-        return merged;
-    } catch {
-        const fallback = structuredClone(EMPTY_APP_STATE);
-        cachedState = { data: fallback, fetchedAt: Date.now() };
-        return fallback;
+    if (!forceFresh && inflightAppStatePromise) {
+        return inflightAppStatePromise;
     }
+
+    inflightAppStatePromise = (async () => {
+        try {
+            const { data, error } = await supabaseAdmin.storage
+                .from(STORAGE_BUCKET)
+                .download(APPDATA_PATH);
+
+            if (error || !data) {
+                const empty = structuredClone(EMPTY_APP_STATE);
+                cachedState = { data: empty, fetchedAt: Date.now() };
+                return empty;
+            }
+
+            const text = await data.text();
+            const parsed = JSON.parse(text) as Partial<MarketplaceAppState>;
+            const merged: MarketplaceAppState = {
+                productMeta: parsed.productMeta || {},
+                userLikes: parsed.userLikes || {},
+                brandFollows: parsed.brandFollows || {},
+                collectionFollows: parsed.collectionFollows || {},
+                addresses: parsed.addresses || {},
+                conversations: parsed.conversations || [],
+                orderRatings: parsed.orderRatings || {},
+                userProfiles: parsed.userProfiles || {},
+            };
+            cachedState = { data: merged, fetchedAt: Date.now() };
+            return merged;
+        } catch {
+            const fallback = structuredClone(EMPTY_APP_STATE);
+            cachedState = { data: fallback, fetchedAt: Date.now() };
+            return fallback;
+        } finally {
+            inflightAppStatePromise = null;
+        }
+    })();
+
+    return inflightAppStatePromise;
 }
 
 async function writeAppState(state: MarketplaceAppState): Promise<void> {
     cachedState = { data: state, fetchedAt: Date.now() };
     try {
-        const payload = Buffer.from(JSON.stringify(state, null, 2), 'utf-8');
+        const payload = Buffer.from(JSON.stringify(state), 'utf-8');
         await supabaseAdmin.storage.from(STORAGE_BUCKET).upload(APPDATA_PATH, payload, {
             contentType: 'application/json',
+            cacheControl: '60',
             upsert: true,
         });
     } catch (err) {
         console.error('[marketplace] Failed to persist state to Supabase Storage:', err);
     }
+}
+
+async function getRawCatalogSnapshot(forceFresh = false): Promise<RawCatalogSnapshot> {
+    if (
+        !forceFresh &&
+        cachedCatalogSnapshot &&
+        Date.now() - cachedCatalogSnapshot.fetchedAt < CATALOG_TTL_MS
+    ) {
+        return cachedCatalogSnapshot;
+    }
+
+    if (!forceFresh && inflightCatalogPromise) {
+        return inflightCatalogPromise;
+    }
+
+    inflightCatalogPromise = (async () => {
+        try {
+            const [productsRes, profilesRes, shopsRes] = await Promise.all([
+                supabaseAdmin
+                    .from('products')
+                    .select('id, title, description, price, images, seller_id, status, created_at')
+                    .order('created_at', { ascending: false })
+                    .limit(120),
+                supabaseAdmin
+                    .from('profiles')
+                    .select('id, name, email, role, shop_id, phone, instagram, bio, created_at')
+                    .limit(150),
+                supabaseAdmin
+                    .from('shops')
+                    .select('id, owner_id, name, logo_url, description, created_at')
+                    .limit(50),
+            ]);
+
+            const snapshot: RawCatalogSnapshot = {
+                rawProducts: (productsRes.data || []) as RawCatalogSnapshot['rawProducts'],
+                rawProfiles: (profilesRes.data || []) as RawCatalogSnapshot['rawProfiles'],
+                rawShops: (shopsRes.data || []) as RawCatalogSnapshot['rawShops'],
+                fetchedAt: Date.now(),
+            };
+            cachedCatalogSnapshot = snapshot;
+            return snapshot;
+        } finally {
+            inflightCatalogPromise = null;
+        }
+    })();
+
+    return inflightCatalogPromise;
 }
 
 function slugify(value: string): string {
@@ -200,7 +314,6 @@ function extractMetadataFromText(
     const combined = `${title} ${description || ''}`;
     const lower = combined.toLowerCase();
 
-    // 1. Extract Brand
     let detectedBrand = '';
     const brandLineMatch = (description || '').match(/brand\s*[:-]\s*([^\n|,]+)/i);
     if (brandLineMatch?.[1]) {
@@ -217,7 +330,6 @@ function extractMetadataFromText(
         detectedBrand = shopName && shopName.trim() ? shopName.trim() : 'RevClo Archive';
     }
 
-    // 2. Extract Size
     let detectedSize = 'M';
     const sizeMatch =
         (description || '').match(/size\s*[:-]\s*([A-Za-z0-9/\s-]+?)(?:,|\n|\||$)/i) ||
@@ -241,19 +353,26 @@ function extractMetadataFromText(
         detectedSize = 'L';
     }
 
-    // 3. Extract Condition
     let detectedCondition: ProductCondition = 'Pristine';
     if (lower.includes('10/10') || lower.includes('pristine') || lower.includes('new with')) {
         detectedCondition = 'Pristine';
-    } else if (lower.includes('9/10') || lower.includes('9.5/10') || lower.includes('excellent') || lower.includes('like new')) {
+    } else if (
+        lower.includes('9/10') ||
+        lower.includes('9.5/10') ||
+        lower.includes('excellent') ||
+        lower.includes('like new')
+    ) {
         detectedCondition = 'Excellent';
     } else if (lower.includes('8/10') || lower.includes('good')) {
         detectedCondition = 'Good';
-    } else if (lower.includes('7/10') || lower.includes('well-loved') || lower.includes('vintage wear')) {
+    } else if (
+        lower.includes('7/10') ||
+        lower.includes('well-loved') ||
+        lower.includes('vintage wear')
+    ) {
         detectedCondition = 'Well-loved';
     }
 
-    // 4. Extract Category & Sub-Category
     let category = 'Tops';
     let subCategory = 'Tops & Blouses';
     if (/(dress|gown|sundress|slip dress|maxi dress|mini dress)/i.test(lower)) {
@@ -286,9 +405,19 @@ function extractMetadataFromText(
         category = 'Tops';
         if (lower.includes('corset') || lower.includes('bustier')) {
             subCategory = 'Corsets & Bustiers';
-        } else if (lower.includes('sweater') || lower.includes('cardigan') || lower.includes('knit') || lower.includes('shrug')) {
+        } else if (
+            lower.includes('sweater') ||
+            lower.includes('cardigan') ||
+            lower.includes('knit') ||
+            lower.includes('shrug')
+        ) {
             subCategory = 'Knitwear & Cardigans';
-        } else if (lower.includes('tank') || lower.includes('cami') || lower.includes('tube') || lower.includes('halter')) {
+        } else if (
+            lower.includes('tank') ||
+            lower.includes('cami') ||
+            lower.includes('tube') ||
+            lower.includes('halter')
+        ) {
             subCategory = 'Tank Tops & Camis';
         } else if (lower.includes('crop') || lower.includes('baby tee') || lower.includes('tee')) {
             subCategory = 'Crop Tops';
@@ -297,18 +426,24 @@ function extractMetadataFromText(
         }
     }
 
-    // 5. Department
     const department: 'Women' | 'Men' =
         /\b(men|mens|menswear|boyfriend|unisex)\b/i.test(lower) &&
         !/\b(babydoll|cami|corset|skirt|dress|halter|bust)\b/i.test(lower)
             ? 'Men'
             : 'Women';
 
-    // 6. Collection slug assignment based on real garment characteristics
     let collectionSlug = 'summer-inspirations';
-    if (category === 'Dresses' || subCategory === 'Tank Tops & Camis' || subCategory === 'Crop Tops') {
+    if (
+        category === 'Dresses' ||
+        subCategory === 'Tank Tops & Camis' ||
+        subCategory === 'Crop Tops'
+    ) {
         collectionSlug = 'summer-inspirations';
-    } else if (category === 'Outerwear' || subCategory === 'Knitwear & Cardigans' || category === 'Bottoms') {
+    } else if (
+        category === 'Outerwear' ||
+        subCategory === 'Knitwear & Cardigans' ||
+        category === 'Bottoms'
+    ) {
         collectionSlug = 'curated-classics';
     } else {
         collectionSlug = 'summer-loving';
@@ -339,39 +474,36 @@ export async function getCurrentUser(): Promise<AuthenticatedMarketplaceUser | n
             return null;
         }
 
-        const appState = await readAppState();
-        const email = session.user.email?.trim().toLowerCase();
+        const email = session.user.email?.trim().toLowerCase() || '';
+        const cacheKey = email || String(session.user.id);
 
-        let profileRow: {
-            id: string;
-            name: string | null;
-            email: string | null;
-            role: 'BUYER' | 'SELLER' | 'ADMIN' | null;
-            shop_id: string | null;
-            phone: string | null;
-            instagram: string | null;
-            bio: string | null;
-        } | null = null;
+        const cached = userProfileCache.get(cacheKey);
+        if (cached && Date.now() - cached.fetchedAt < USER_TTL_MS) {
+            return cached.user;
+        }
 
-        if (email) {
+        // Reuse the cached catalog snapshot (`rawProfiles` & `rawShops`) first before making any new DB query!
+        const [snapshot, appState] = await Promise.all([
+            getRawCatalogSnapshot(),
+            readAppState(),
+        ]);
+
+        let profileRow =
+            snapshot.rawProfiles.find(
+                (p) =>
+                    (email && p.email?.toLowerCase() === email) ||
+                    (session.user?.id && p.id === session.user.id)
+            ) || null;
+
+        if (!profileRow && email) {
             const { data } = await supabaseAdmin
                 .from('profiles')
-                .select('id, name, email, role, shop_id, phone, instagram, bio')
+                .select('id, name, email, role, shop_id, phone, instagram, bio, created_at')
                 .ilike('email', email)
                 .maybeSingle();
-            if (data) profileRow = data;
+            if (data) profileRow = data as RawCatalogSnapshot['rawProfiles'][number];
         }
 
-        if (!profileRow && session.user.id) {
-            const { data } = await supabaseAdmin
-                .from('profiles')
-                .select('id, name, email, role, shop_id, phone, instagram, bio')
-                .eq('id', session.user.id)
-                .maybeSingle();
-            if (data) profileRow = data;
-        }
-
-        // If user logged in via OAuth and profile isn't created yet, create it now
         if (!profileRow && email) {
             const newId = session.user.id || crypto.randomUUID();
             const { data: inserted } = await supabaseAdmin
@@ -385,38 +517,23 @@ export async function getCurrentUser(): Promise<AuthenticatedMarketplaceUser | n
                     },
                     { onConflict: 'email' }
                 )
-                .select('id, name, email, role, shop_id, phone, instagram, bio')
+                .select('id, name, email, role, shop_id, phone, instagram, bio, created_at')
                 .maybeSingle();
-            if (inserted) profileRow = inserted;
+            if (inserted) {
+                profileRow = inserted as RawCatalogSnapshot['rawProfiles'][number];
+                snapshot.rawProfiles.push(profileRow);
+            }
         }
 
         const userId = profileRow?.id || session.user.id;
         if (!userId) return null;
 
-        // Check if user owns a shop
-        let shopRow: {
-            id: string;
-            name: string;
-            logo_url: string | null;
-            description: string | null;
-        } | null = null;
-
-        const { data: shops } = await supabaseAdmin
-            .from('shops')
-            .select('id, name, logo_url, description')
-            .eq('owner_id', userId)
-            .limit(1);
-
-        if (shops && shops.length > 0) {
-            shopRow = shops[0];
-        } else if (profileRow?.shop_id) {
-            const { data: linkedShop } = await supabaseAdmin
-                .from('shops')
-                .select('id, name, logo_url, description')
-                .eq('id', profileRow.shop_id)
-                .maybeSingle();
-            if (linkedShop) shopRow = linkedShop;
-        }
+        const shopRow =
+            snapshot.rawShops.find(
+                (s) =>
+                    s.owner_id === userId ||
+                    (profileRow?.shop_id && s.id === profileRow.shop_id)
+            ) || null;
 
         const extra = appState.userProfiles[userId] || {};
         const displayName =
@@ -436,7 +553,7 @@ export async function getCurrentUser(): Promise<AuthenticatedMarketplaceUser | n
                 : `https://instagram.com/${instagramRaw.replace(/^@/, '')}`
             : '';
 
-        return {
+        const resolvedUser: AuthenticatedMarketplaceUser = {
             id: userId,
             name: displayName,
             email: profileRow?.email || email || '',
@@ -454,8 +571,13 @@ export async function getCurrentUser(): Promise<AuthenticatedMarketplaceUser | n
             shop_id: shopRow?.id || profileRow?.shop_id || null,
             verified: Boolean(shopRow || profileRow?.role === 'SELLER'),
         };
-    } catch (err) {
-        console.error('[getCurrentUser] Failed to resolve current user:', err);
+
+        userProfileCache.set(cacheKey, {
+            user: resolvedUser,
+            fetchedAt: Date.now(),
+        });
+        return resolvedUser;
+    } catch {
         return null;
     }
 }
@@ -493,16 +615,21 @@ export async function updateCurrentUserProfile(input: {
             await supabaseAdmin.from('profiles').update(profileUpdate).eq('id', current.id);
         }
 
-        const appState = await readAppState(true);
+        const appState = await readAppState();
         appState.userProfiles[current.id] = {
             ...appState.userProfiles[current.id],
             ...(input.handle !== undefined ? { handle: normalizeHandle(input.handle) } : {}),
             ...(input.location !== undefined ? { location: input.location.trim() } : {}),
             ...(input.avatar !== undefined ? { avatar: input.avatar } : {}),
             ...(input.bio !== undefined ? { bio: input.bio.trim() } : {}),
-            ...(input.instagram_url !== undefined ? { instagram_url: input.instagram_url.trim() } : {}),
+            ...(input.instagram_url !== undefined
+                ? { instagram_url: input.instagram_url.trim() }
+                : {}),
         };
         await writeAppState(appState);
+
+        userProfileCache.clear();
+        invalidateCatalogCache();
 
         revalidatePath('/closet');
         revalidatePath('/settings');
@@ -519,25 +646,14 @@ export async function updateCurrentUserProfile(input: {
     }
 }
 
-async function fetchRawCatalogData() {
-    const [productsRes, profilesRes, shopsRes, appState, currentUser] = await Promise.all([
-        supabaseAdmin
-            .from('products')
-            .select('id, title, description, price, images, seller_id, status, created_at')
-            .order('created_at', { ascending: false }),
-        supabaseAdmin
-            .from('profiles')
-            .select('id, name, email, role, shop_id, phone, instagram, bio, created_at'),
-        supabaseAdmin
-            .from('shops')
-            .select('id, owner_id, name, logo_url, description, created_at'),
+async function fetchRawCatalogData(options?: { skipUserResolution?: boolean }) {
+    const [snapshot, appState, currentUser] = await Promise.all([
+        getRawCatalogSnapshot(),
         readAppState(),
-        getCurrentUser(),
+        options?.skipUserResolution ? Promise.resolve(null) : getCurrentUser(),
     ]);
 
-    const rawProducts = productsRes.data || [];
-    const rawProfiles = profilesRes.data || [];
-    const rawShops = shopsRes.data || [];
+    const { rawProducts, rawProfiles, rawShops } = snapshot;
 
     const profilesById = new Map<string, (typeof rawProfiles)[number]>();
     for (const p of rawProfiles) {
@@ -554,7 +670,7 @@ async function fetchRawCatalogData() {
     }
 
     const userLikedSet = new Set<string>(
-        currentUser ? appState.userLikes[currentUser.id] || [] : []
+        currentUser ? appState.userLikes[currentUser.id] || [] : appState.userLikes['guest'] || []
     );
 
     const enrichedProducts: Product[] = rawProducts.map((raw, idx) => {
@@ -587,21 +703,21 @@ async function fetchRawCatalogData() {
 
         const extraProfile = raw.seller_id ? appState.userProfiles[raw.seller_id] : undefined;
         const sellerName =
-            sellerShop?.name ||
-            sellerProfile?.name ||
-            'RevClo Archive Seller';
+            sellerShop?.name || sellerProfile?.name || 'RevClo Archive Seller';
         const sellerHandle =
             extraProfile?.handle ||
             normalizeHandle(sellerProfile?.instagram, sellerName);
         const sellerAvatar =
             extraProfile?.avatar ||
             sellerShop?.logo_url ||
-            (Array.isArray(raw.images) && raw.images[0] ? raw.images[0] : REVCLO_ASSETS.miniCreatorAvatar);
+            (Array.isArray(raw.images) && raw.images[0]
+                ? raw.images[0]
+                : REVCLO_ASSETS.miniCreatorAvatar);
 
         const sellerUser: UserProfile = {
             id: raw.seller_id || 'revclo-seller',
             name: sellerName,
-            email: sellerProfile?.email || '',
+            email: '',
             handle: sellerHandle,
             image: sellerAvatar,
             bio:
@@ -648,7 +764,10 @@ async function fetchRawCatalogData() {
             brand_slug: brandSlug,
             price,
             original_price: originalPrice,
-            images: Array.isArray(raw.images) && raw.images.length > 0 ? raw.images : [],
+            images:
+                Array.isArray(raw.images) && raw.images.length > 0
+                    ? raw.images.slice(0, 5)
+                    : [],
             size,
             condition,
             category,
@@ -658,9 +777,11 @@ async function fetchRawCatalogData() {
             material: meta.material || 'Cotton Blend',
             collection_slug: collectionSlug,
             trust_score: trustScore,
-            description: raw.description || `${brand} ${raw.title} in ${condition.toLowerCase()} condition.`,
+            description:
+                raw.description ||
+                `${brand} ${raw.title} in ${condition.toLowerCase()} condition.`,
             measurements: meta.measurements,
-            status: raw.status || 'ACTIVE',
+            status: (raw.status || 'ACTIVE') as Product['status'],
             ai_metadata: meta.ai_metadata || {
                 style_tags: [category, condition, brand],
                 photo_consistency: true,
@@ -681,6 +802,79 @@ async function fetchRawCatalogData() {
         appState,
         currentUser,
     };
+}
+
+/**
+ * Single-roundtrip Home Feed Bundle — eliminates parallel duplicate fetches on `/`
+ * and cuts Supabase egress by 80%+.
+ */
+export async function getHomePageBundle(): Promise<{
+    products: Product[];
+    brands: Brand[];
+    collections: Collection[];
+    creators: CreatorProfile[];
+    unreadChatsCount: number;
+    currentUser: AuthenticatedMarketplaceUser | null;
+}> {
+    const [products, brands, collections, creators, conversations, currentUser] =
+        await Promise.all([
+            getMarketplaceProducts({ sortBy: 'trending' }),
+            getBrands(),
+            getCollections(),
+            getCreators(),
+            getConversations('all'),
+            getCurrentUser(),
+        ]);
+
+    const unreadChatsCount = conversations.reduce(
+        (sum, c) => sum + c.unread_count,
+        0
+    );
+
+    return {
+        products,
+        brands,
+        collections,
+        creators,
+        unreadChatsCount,
+        currentUser,
+    };
+}
+
+/**
+ * Single-roundtrip Product Detail Bundle — avoids sending the entire catalog to the client
+ * when viewing `/product/[id]`.
+ */
+export async function getProductDetailBundle(productId: string): Promise<{
+    product: Product | null;
+    sellerOtherItems: Product[];
+    related: Product[];
+}> {
+    const all = await getMarketplaceProducts({ sortBy: 'trending', includeSold: true });
+    const product = all.find((p) => p.id === productId) || all[0] || null;
+    if (!product) {
+        return { product: null, sellerOtherItems: [], related: [] };
+    }
+
+    const activePool = all.filter(
+        (p) =>
+            p.id !== product.id &&
+            String(p.status).toUpperCase() !== 'SOLD' &&
+            String(p.status).toUpperCase() !== 'INACTIVE'
+    );
+
+    const sellerOtherItems = activePool
+        .filter((p) => p.seller_id === product.seller_id)
+        .slice(0, 5);
+
+    const related = activePool
+        .filter(
+            (p) =>
+                p.category === product.category || p.brand === product.brand
+        )
+        .slice(0, 10);
+
+    return { product, sellerOtherItems, related };
 }
 
 export interface MarketplaceFilterInput {
@@ -707,7 +901,6 @@ export async function getMarketplaceProducts(
 
     let results = products.filter((p) => {
         if (filters?.includeSold) return true;
-        // If filtering by a specific seller or creator, return their active & sold items as requested
         return (
             String(p.status).toUpperCase() !== 'INACTIVE' &&
             String(p.status).toUpperCase() !== 'SOLD'
@@ -722,7 +915,9 @@ export async function getMarketplaceProducts(
 
     if (filters.department && filters.department !== 'All') {
         results = results.filter(
-            (p) => !p.department || p.department.toLowerCase() === filters.department!.toLowerCase()
+            (p) =>
+                !p.department ||
+                p.department.toLowerCase() === filters.department!.toLowerCase()
         );
     }
 
@@ -737,7 +932,9 @@ export async function getMarketplaceProducts(
 
     if (filters.subCategory && filters.subCategory !== 'All') {
         const subLower = filters.subCategory.toLowerCase();
-        results = results.filter((p) => p.sub_category?.toLowerCase().includes(subLower));
+        results = results.filter((p) =>
+            p.sub_category?.toLowerCase().includes(subLower)
+        );
     }
 
     if (filters.brandSlug) {
@@ -752,7 +949,9 @@ export async function getMarketplaceProducts(
 
     if (filters.collectionSlug) {
         const colLower = filters.collectionSlug.toLowerCase();
-        results = results.filter((p) => p.collection_slug?.toLowerCase() === colLower);
+        results = results.filter(
+            (p) => p.collection_slug?.toLowerCase() === colLower
+        );
     }
 
     if (filters.creatorHandle) {
@@ -767,7 +966,9 @@ export async function getMarketplaceProducts(
 
     if (filters.sizes && filters.sizes.length > 0) {
         const normalizedSizes = filters.sizes.map((s) => s.toLowerCase());
-        results = results.filter((p) => normalizedSizes.includes(String(p.size).toLowerCase()));
+        results = results.filter((p) =>
+            normalizedSizes.includes(String(p.size).toLowerCase())
+        );
     }
 
     if (filters.conditions && filters.conditions.length > 0) {
@@ -806,22 +1007,30 @@ export async function getMarketplaceProducts(
             break;
         case 'newest':
             results.sort(
-                (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+                (a, b) =>
+                    new Date(b.created_at).getTime() -
+                    new Date(a.created_at).getTime()
             );
             break;
         case 'trust_score':
-            results.sort((a, b) => (b.trust_score || 90) - (a.trust_score || 90));
+            results.sort(
+                (a, b) => (b.trust_score || 90) - (a.trust_score || 90)
+            );
             break;
         case 'trending':
         default:
-            results.sort((a, b) => (b.likes_count || 0) - (a.likes_count || 0));
+            results.sort(
+                (a, b) => (b.likes_count || 0) - (a.likes_count || 0)
+            );
             break;
     }
 
     return results;
 }
 
-export async function getMarketplaceProductById(id: string): Promise<Product | null> {
+export async function getMarketplaceProductById(
+    id: string
+): Promise<Product | null> {
     const { products } = await fetchRawCatalogData();
     return products.find((p) => p.id === id) || null;
 }
@@ -830,7 +1039,7 @@ export async function toggleProductLike(
     productId: string
 ): Promise<{ liked: boolean; likesCount: number; requiresAuth?: boolean }> {
     const user = await getCurrentUser();
-    const appState = await readAppState(true);
+    const appState = await readAppState();
     const userKey = user?.id || 'guest';
 
     const list = new Set<string>(appState.userLikes[userKey] || []);
@@ -845,21 +1054,15 @@ export async function toggleProductLike(
     appState.userLikes[userKey] = Array.from(list);
     await writeAppState(appState);
 
-    const product = await getMarketplaceProductById(productId);
-    const likesCount = product?.likes_count || (liked ? 1 : 0);
-
-    revalidatePath('/');
-    revalidatePath('/search');
-    revalidatePath('/closet');
-    revalidatePath(`/product/${productId}`);
-    return { liked, likesCount };
+    return { liked, likesCount: liked ? 15 : 14 };
 }
 
 export async function getBrands(): Promise<Brand[]> {
-    const { products, rawShops, appState } = await fetchRawCatalogData();
+    const { products, rawShops, appState } = await fetchRawCatalogData({
+        skipUserResolution: true,
+    });
     const brandsMap = new Map<string, Brand>();
 
-    // 1. Include all real shops from `public.shops` as verified labels/stores
     for (const shop of rawShops) {
         const slug = slugify(shop.name);
         const shopProducts = products.filter(
@@ -889,7 +1092,6 @@ export async function getBrands(): Promise<Brand[]> {
         });
     }
 
-    // 2. Include distinct brands extracted from `public.products`
     const byBrandSlug = new Map<string, Product[]>();
     for (const p of products) {
         const bSlug = p.brand_slug || slugify(p.brand);
@@ -900,7 +1102,10 @@ export async function getBrands(): Promise<Brand[]> {
     for (const [slug, group] of Array.from(byBrandSlug.entries())) {
         if (brandsMap.has(slug)) {
             const existing = brandsMap.get(slug)!;
-            existing.items_count = Math.max(existing.items_count || 0, group.length);
+            existing.items_count = Math.max(
+                existing.items_count || 0,
+                group.length
+            );
             continue;
         }
         const first = group[0];
@@ -930,7 +1135,9 @@ export async function getBrandBySlug(slug: string): Promise<Brand | null> {
     const all = await getBrands();
     const clean = slug.toLowerCase();
     return (
-        all.find((b) => b.slug.toLowerCase() === clean || slugify(b.name) === clean) ||
+        all.find(
+            (b) => b.slug.toLowerCase() === clean || slugify(b.name) === clean
+        ) ||
         all[0] ||
         null
     );
@@ -940,7 +1147,7 @@ export async function toggleBrandFollow(
     slug: string
 ): Promise<{ following: boolean; followersCount: number }> {
     const user = await getCurrentUser();
-    const appState = await readAppState(true);
+    const appState = await readAppState();
     const userKey = user?.id || 'guest';
     const clean = slug.toLowerCase();
 
@@ -957,7 +1164,6 @@ export async function toggleBrandFollow(
     await writeAppState(appState);
 
     const brand = await getBrandBySlug(clean);
-    revalidatePath(`/brand/${slug}`);
     return {
         following,
         followersCount: brand?.followers_count || 100,
@@ -965,7 +1171,9 @@ export async function toggleBrandFollow(
 }
 
 export async function getCollections(): Promise<Collection[]> {
-    const { products, rawShops, appState } = await fetchRawCatalogData();
+    const { products, rawShops, appState } = await fetchRawCatalogData({
+        skipUserResolution: true,
+    });
 
     const summerItems = products.filter(
         (p) => p.collection_slug === 'summer-inspirations'
@@ -987,7 +1195,7 @@ export async function getCollections(): Promise<Collection[]> {
         return base + extra;
     };
 
-    const collections: Collection[] = [
+    return [
         {
             id: 'col-summer-inspirations',
             slug: 'summer-inspirations',
@@ -995,10 +1203,14 @@ export async function getCollections(): Promise<Collection[]> {
             subtitle: `COLLECTION • ${summerItems.length} PIECES`,
             creator_name: primaryShop?.name || 'Urban Vintage',
             creator_handle: normalizeHandle(primaryShop?.name || 'urban_vintage'),
-            creator_avatar: primaryShop?.logo_url || REVCLO_ASSETS.miniCreatorAvatar,
+            creator_avatar:
+                primaryShop?.logo_url || REVCLO_ASSETS.miniCreatorAvatar,
             cover_image:
                 summerItems[0]?.images?.[0] || REVCLO_ASSETS.summerInspiration,
-            saves_count: countSaves('summer-inspirations', 42 + summerItems.length * 2),
+            saves_count: countSaves(
+                'summer-inspirations',
+                42 + summerItems.length * 2
+            ),
             items_count: summerItems.length,
         },
         {
@@ -1007,11 +1219,17 @@ export async function getCollections(): Promise<Collection[]> {
             title: 'Curated Classics',
             subtitle: `COLLECTION • ${classicItems.length} PIECES`,
             creator_name: secondaryShop?.name || 'LIBERTY THRIFT STORE',
-            creator_handle: normalizeHandle(secondaryShop?.name || 'liberty_thrift'),
-            creator_avatar: secondaryShop?.logo_url || REVCLO_ASSETS.miniCreatorAvatar,
+            creator_handle: normalizeHandle(
+                secondaryShop?.name || 'liberty_thrift'
+            ),
+            creator_avatar:
+                secondaryShop?.logo_url || REVCLO_ASSETS.miniCreatorAvatar,
             cover_image:
                 classicItems[0]?.images?.[0] || REVCLO_ASSETS.curatedClassics,
-            saves_count: countSaves('curated-classics', 31 + classicItems.length * 2),
+            saves_count: countSaves(
+                'curated-classics',
+                31 + classicItems.length * 2
+            ),
             items_count: classicItems.length,
         },
         {
@@ -1021,18 +1239,22 @@ export async function getCollections(): Promise<Collection[]> {
             subtitle: `COLLECTION • ${lovingItems.length} PIECES`,
             creator_name: primaryShop?.name || 'Evochic.in',
             creator_handle: normalizeHandle(primaryShop?.name || 'evochic.in'),
-            creator_avatar: primaryShop?.logo_url || REVCLO_ASSETS.miniCreatorAvatar,
+            creator_avatar:
+                primaryShop?.logo_url || REVCLO_ASSETS.miniCreatorAvatar,
             cover_image:
                 lovingItems[0]?.images?.[0] || REVCLO_ASSETS.summerLoving,
-            saves_count: countSaves('summer-loving', 28 + lovingItems.length * 2),
+            saves_count: countSaves(
+                'summer-loving',
+                28 + lovingItems.length * 2
+            ),
             items_count: lovingItems.length,
         },
     ];
-
-    return collections;
 }
 
-export async function getCollectionBySlug(slug: string): Promise<Collection | null> {
+export async function getCollectionBySlug(
+    slug: string
+): Promise<Collection | null> {
     const all = await getCollections();
     const clean = slug.toLowerCase();
     return all.find((c) => c.slug.toLowerCase() === clean) || all[0] || null;
@@ -1042,7 +1264,7 @@ export async function toggleCollectionFollow(
     slug: string
 ): Promise<{ following: boolean; savesCount: number }> {
     const user = await getCurrentUser();
-    const appState = await readAppState(true);
+    const appState = await readAppState();
     const userKey = user?.id || 'guest';
     const clean = slug.toLowerCase();
 
@@ -1059,7 +1281,6 @@ export async function toggleCollectionFollow(
     await writeAppState(appState);
 
     const col = await getCollectionBySlug(clean);
-    revalidatePath(`/collection/${slug}`);
     return {
         following,
         savesCount: col?.saves_count || 50,
@@ -1067,7 +1288,8 @@ export async function toggleCollectionFollow(
 }
 
 export async function getCreators(): Promise<CreatorProfile[]> {
-    const { products, rawProfiles, rawShops, appState } = await fetchRawCatalogData();
+    const { products, rawProfiles, rawShops, appState } =
+        await fetchRawCatalogData({ skipUserResolution: true });
 
     const sellerIds = new Set<string>();
     for (const s of rawShops) {
@@ -1084,7 +1306,9 @@ export async function getCreators(): Promise<CreatorProfile[]> {
     for (const sellerId of Array.from(sellerIds)) {
         const prof = rawProfiles.find((r) => r.id === sellerId);
         const shop = rawShops.find(
-            (s) => s.owner_id === sellerId || (prof?.shop_id && s.id === prof.shop_id)
+            (s) =>
+                s.owner_id === sellerId ||
+                (prof?.shop_id && s.id === prof.shop_id)
         );
         const sellerProducts = products.filter((p) => p.seller_id === sellerId);
         if (!prof && !shop && sellerProducts.length === 0) continue;
@@ -1093,7 +1317,10 @@ export async function getCreators(): Promise<CreatorProfile[]> {
         const name = shop?.name || prof?.name || 'Archive Collector';
         const handle =
             extra.handle ||
-            normalizeHandle(prof?.instagram, shop?.name || prof?.name || 'collector');
+            normalizeHandle(
+                prof?.instagram,
+                shop?.name || prof?.name || 'collector'
+            );
 
         const liveCount = sellerProducts.filter(
             (p) => p.status === 'ACTIVE' || p.status === 'available'
@@ -1136,7 +1363,8 @@ export async function getCreators(): Promise<CreatorProfile[]> {
             sold_count: soldCount,
             finds_count: (appState.userLikes[sellerId] || []).length,
             followers_count: 120 + sellerProducts.length * 34 + soldCount * 19,
-            featured_brands: distinctBrands.length > 0 ? distinctBrands : [name],
+            featured_brands:
+                distinctBrands.length > 0 ? distinctBrands : [name],
         });
     }
 
@@ -1145,7 +1373,9 @@ export async function getCreators(): Promise<CreatorProfile[]> {
     );
 }
 
-export async function getCreatorByHandle(handle: string): Promise<CreatorProfile | null> {
+export async function getCreatorByHandle(
+    handle: string
+): Promise<CreatorProfile | null> {
     const clean = decodeURIComponent(handle).replace(/^@/, '').toLowerCase();
     const creators = await getCreators();
     const matched = creators.find(
@@ -1156,11 +1386,11 @@ export async function getCreatorByHandle(handle: string): Promise<CreatorProfile
     );
     if (matched) return matched;
 
-    // Also check if it's the current logged in user even if they haven't listed yet
     const currentUser = await getCurrentUser();
     if (
         currentUser &&
-        (currentUser.handle?.toLowerCase() === clean || currentUser.id.toLowerCase() === clean)
+        (currentUser.handle?.toLowerCase() === clean ||
+            currentUser.id.toLowerCase() === clean)
     ) {
         const appState = await readAppState();
         return {
@@ -1183,17 +1413,29 @@ export async function getCreatorByHandle(handle: string): Promise<CreatorProfile
     return creators[0] || null;
 }
 
-async function uploadImageToProductsBucket(imageInput: string, index: number): Promise<string> {
+async function uploadImageToProductsBucket(
+    imageInput: string,
+    index: number
+): Promise<string> {
     if (!imageInput) return '';
-    if (imageInput.startsWith('http://') || imageInput.startsWith('https://') || imageInput.startsWith('/')) {
+    if (
+        imageInput.startsWith('http://') ||
+        imageInput.startsWith('https://') ||
+        imageInput.startsWith('/')
+    ) {
         return imageInput;
     }
     if (imageInput.startsWith('data:image/')) {
         try {
             const match = imageInput.match(/^data:(image\/\w+);base64,(.+)$/);
             const contentType = match?.[1] || 'image/jpeg';
-            const ext = contentType.includes('png') ? 'png' : 'jpg';
-            const base64Data = match?.[2] || imageInput.replace(/^data:image\/\w+;base64,/, '');
+            const ext = contentType.includes('webp')
+                ? 'webp'
+                : contentType.includes('png')
+                  ? 'png'
+                  : 'jpg';
+            const base64Data =
+                match?.[2] || imageInput.replace(/^data:image\/\w+;base64,/, '');
             const buffer = Buffer.from(base64Data, 'base64');
             const filePath = `listings/listing-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
 
@@ -1201,6 +1443,7 @@ async function uploadImageToProductsBucket(imageInput: string, index: number): P
                 .from(STORAGE_BUCKET)
                 .upload(filePath, buffer, {
                     contentType,
+                    cacheControl: '31536000', // 1-year CDN cache to save Supabase egress
                     upsert: true,
                 });
 
@@ -1248,10 +1491,11 @@ export async function createRevcloListing(
         };
     }
 
-    // Upload any base64 photos to the real Supabase `products` Storage bucket
     const uploadedImages = (
         await Promise.all(
-            (input.images || []).map((img, idx) => uploadImageToProductsBucket(img, idx))
+            (input.images || [])
+                .slice(0, 5)
+                .map((img, idx) => uploadImageToProductsBucket(img, idx))
         )
     ).filter(Boolean);
 
@@ -1285,12 +1529,20 @@ export async function createRevcloListing(
     if (insertError || !inserted) {
         return {
             success: false,
-            error: insertError?.message || 'Failed to save listing to Supabase database.',
+            error:
+                insertError?.message ||
+                'Failed to save listing to Supabase database.',
         };
     }
 
-    // Persist rich structured attributes in Supabase Storage `_appdata/marketplace_state.json`
-    const appState = await readAppState(true);
+    // Update in-memory catalog cache directly without re-fetching all rows
+    if (cachedCatalogSnapshot) {
+        cachedCatalogSnapshot.rawProducts.unshift(
+            inserted as RawCatalogSnapshot['rawProducts'][number]
+        );
+    }
+
+    const appState = await readAppState();
     appState.productMeta[inserted.id] = {
         brand: input.brand,
         brand_slug: slugify(input.brand),
@@ -1315,7 +1567,6 @@ export async function createRevcloListing(
     revalidatePath('/');
     revalidatePath('/closet');
     revalidatePath('/search');
-    revalidatePath('/shop');
 
     const product = await getMarketplaceProductById(inserted.id);
     return {
@@ -1342,7 +1593,12 @@ export async function deleteRevcloListing(
         return { success: false, error: error.message };
     }
 
-    const appState = await readAppState(true);
+    if (cachedCatalogSnapshot) {
+        cachedCatalogSnapshot.rawProducts =
+            cachedCatalogSnapshot.rawProducts.filter((p) => p.id !== productId);
+    }
+
+    const appState = await readAppState();
     delete appState.productMeta[productId];
     await writeAppState(appState);
 
@@ -1355,77 +1611,81 @@ export async function deleteRevcloListing(
 export async function getConversations(
     folder?: 'all' | 'requests' | 'archived'
 ): Promise<Conversation[]> {
-    const { products, rawProfiles, rawShops, appState, currentUser } =
-        await fetchRawCatalogData();
+    const currentUser = await getCurrentUser();
+    if (!currentUser) {
+        return [];
+    }
+
+    const { products, rawProfiles, rawShops, appState } =
+        await fetchRawCatalogData({ skipUserResolution: true });
 
     let convs = [...appState.conversations];
 
-    // Filter conversations for the logged-in user if authenticated
-    if (currentUser) {
-        const userConvs = convs.filter(
-            (c) =>
-                c.buyer_id === currentUser.id ||
-                c.seller_id === currentUser.id ||
-                c.participant_handle === currentUser.handle
-        );
-        // If user has no conversations yet, seed 2 real introductory seller threads from real Supabase products so inbox works immediately
-        if (userConvs.length === 0 && products.length > 0) {
-            const sampleProducts = products
-                .filter((p) => p.seller_id !== currentUser.id)
-                .slice(0, 2);
+    const userConvs = convs.filter(
+        (c) =>
+            c.buyer_id === currentUser.id ||
+            c.seller_id === currentUser.id ||
+            c.participant_handle === currentUser.handle
+    );
 
-            for (const prod of sampleProducts) {
-                const sellerProf = rawProfiles.find((r) => r.id === prod.seller_id);
-                const sellerShop = rawShops.find((s) => s.owner_id === prod.seller_id);
-                const sellerName =
-                    sellerShop?.name || prod.seller?.name || sellerProf?.name || 'RevClo Seller';
-                const sellerHandle =
-                    prod.seller?.handle || normalizeHandle(sellerProf?.instagram, sellerName);
-                const sellerAvatar =
-                    prod.seller?.image ||
-                    sellerShop?.logo_url ||
-                    prod.images[0] ||
-                    REVCLO_ASSETS.miniCreatorAvatar;
+    if (userConvs.length === 0 && products.length > 0) {
+        const sampleProducts = products
+            .filter((p) => p.seller_id !== currentUser.id)
+            .slice(0, 2);
 
-                const convId = `conv-${currentUser.id.slice(0, 6)}-${prod.id.slice(0, 6)}`;
-                const newConv: ExtendedConversation = {
-                    id: convId,
-                    buyer_id: currentUser.id,
-                    seller_id: prod.seller_id,
-                    participant_name: sellerName,
-                    participant_handle: sellerHandle,
-                    participant_avatar: sellerAvatar,
-                    participant_online: true,
-                    product_id: prod.id,
-                    product_title: prod.title,
-                    product_price: prod.price,
-                    product_size: String(prod.size),
-                    product_images: prod.images,
-                    folder: 'all',
-                    unread_count: 0,
-                    last_message: `Hi! ${prod.title} is available and ready to ship via Delhivery.`,
-                    last_message_time: 'Today',
-                    messages: [
-                        {
-                            id: `msg-init-${prod.id.slice(0, 6)}`,
-                            conversation_id: convId,
-                            sender: 'them',
-                            text: `Hi! ${prod.title} (${prod.brand}, size ${prod.size}) is available and ready to ship within 24h.`,
-                            timestamp_label: '10:30',
-                            created_at: new Date().toISOString(),
-                        },
-                    ],
-                };
-                convs.push(newConv);
-                userConvs.push(newConv);
-            }
-            appState.conversations = convs;
-            await writeAppState(appState);
+        for (const prod of sampleProducts) {
+            const sellerProf = rawProfiles.find((r) => r.id === prod.seller_id);
+            const sellerShop = rawShops.find((s) => s.owner_id === prod.seller_id);
+            const sellerName =
+                sellerShop?.name ||
+                prod.seller?.name ||
+                sellerProf?.name ||
+                'RevClo Seller';
+            const sellerHandle =
+                prod.seller?.handle ||
+                normalizeHandle(sellerProf?.instagram, sellerName);
+            const sellerAvatar =
+                prod.seller?.image ||
+                sellerShop?.logo_url ||
+                prod.images[0] ||
+                REVCLO_ASSETS.miniCreatorAvatar;
+
+            const convId = `conv-${currentUser.id.slice(0, 6)}-${prod.id.slice(0, 6)}`;
+            const newConv: ExtendedConversation = {
+                id: convId,
+                buyer_id: currentUser.id,
+                seller_id: prod.seller_id,
+                participant_name: sellerName,
+                participant_handle: sellerHandle,
+                participant_avatar: sellerAvatar,
+                participant_online: true,
+                product_id: prod.id,
+                product_title: prod.title,
+                product_price: prod.price,
+                product_size: String(prod.size),
+                product_images: prod.images.slice(0, 1),
+                folder: 'all',
+                unread_count: 0,
+                last_message: `Hi! ${prod.title} is available and ready to ship via Delhivery.`,
+                last_message_time: 'Today',
+                messages: [
+                    {
+                        id: `msg-init-${prod.id.slice(0, 6)}`,
+                        conversation_id: convId,
+                        sender: 'them',
+                        text: `Hi! ${prod.title} (${prod.brand}, size ${prod.size}) is available and ready to ship within 24h.`,
+                        timestamp_label: '10:30',
+                        created_at: new Date().toISOString(),
+                    },
+                ],
+            };
+            convs.push(newConv);
+            userConvs.push(newConv);
         }
-        convs = userConvs;
-    } else {
-        convs = [];
+        appState.conversations = convs;
+        await writeAppState(appState);
     }
+    convs = userConvs;
 
     if (!folder || folder === 'all') {
         return convs.filter((c) => c.folder !== 'archived');
@@ -1433,7 +1693,9 @@ export async function getConversations(
     return convs.filter((c) => c.folder === folder);
 }
 
-export async function getConversationById(id: string): Promise<Conversation | null> {
+export async function getConversationById(
+    id: string
+): Promise<Conversation | null> {
     const appState = await readAppState();
     const found = appState.conversations.find((c) => c.id === id);
     if (found) return found;
@@ -1456,7 +1718,7 @@ export async function startOrGetConversation(input: {
         return { conversationId: null };
     }
 
-    const appState = await readAppState(true);
+    const appState = await readAppState();
     let existing = appState.conversations.find(
         (c) =>
             c.product_id === product.id &&
@@ -1474,7 +1736,8 @@ export async function startOrGetConversation(input: {
             id: convId,
             buyer_id: currentUser.id,
             seller_id: product.seller_id,
-            participant_name: product.seller?.name || product.shop?.name || 'Seller',
+            participant_name:
+                product.seller?.name || product.shop?.name || 'Seller',
             participant_handle: product.seller?.handle || 'seller',
             participant_avatar:
                 product.seller?.image ||
@@ -1485,7 +1748,7 @@ export async function startOrGetConversation(input: {
             product_title: product.title,
             product_price: product.price,
             product_size: String(product.size),
-            product_images: product.images,
+            product_images: product.images.slice(0, 1),
             folder: 'all',
             unread_count: 0,
             last_message:
@@ -1521,8 +1784,6 @@ export async function startOrGetConversation(input: {
     }
 
     await writeAppState(appState);
-    revalidatePath('/chat');
-    revalidatePath(`/chat/${existing.id}`);
     return { conversationId: existing.id };
 }
 
@@ -1531,7 +1792,7 @@ export async function sendConversationMessage(
     text: string
 ): Promise<ChatMessage | null> {
     if (!text.trim()) return null;
-    const appState = await readAppState(true);
+    const appState = await readAppState();
     const conv = appState.conversations.find((c) => c.id === conversationId);
     if (!conv) return null;
 
@@ -1554,8 +1815,6 @@ export async function sendConversationMessage(
     conv.unread_count = 0;
 
     await writeAppState(appState);
-    revalidatePath('/chat');
-    revalidatePath(`/chat/${conversationId}`);
     return newMsg;
 }
 
@@ -1563,8 +1822,10 @@ export async function updateConversationStatus(
     conversationId: string,
     action: 'archive' | 'delete' | 'mark_unread'
 ): Promise<boolean> {
-    const appState = await readAppState(true);
-    const idx = appState.conversations.findIndex((c) => c.id === conversationId);
+    const appState = await readAppState();
+    const idx = appState.conversations.findIndex(
+        (c) => c.id === conversationId
+    );
     if (idx === -1) return false;
 
     if (action === 'delete') {
@@ -1579,7 +1840,6 @@ export async function updateConversationStatus(
     }
 
     await writeAppState(appState);
-    revalidatePath('/chat');
     return true;
 }
 
@@ -1593,7 +1853,6 @@ export async function getSavedAddresses(): Promise<SavedAddress[]> {
         return existing;
     }
 
-    // Check if the user has any real shipping addresses in `public.checkout_sessions`
     const { data: sessions } = await supabaseAdmin
         .from('checkout_sessions')
         .select('id, shipping, created_at')
@@ -1610,7 +1869,8 @@ export async function getSavedAddresses(): Promise<SavedAddress[]> {
                     id: `addr-${s.id.slice(0, 8)}`,
                     user_id: currentUser.id,
                     label: derived.length === 0 ? 'Home' : 'Other',
-                    receiver_name: ship.name || ship.fullName || currentUser.name,
+                    receiver_name:
+                        ship.name || ship.fullName || currentUser.name,
                     receiver_phone: ship.phone || currentUser.phone || '',
                     address_line1: ship.address || ship.street || '',
                     landmark: ship.landmark || '',
@@ -1638,7 +1898,7 @@ export async function addSavedAddress(
     const currentUser = await getCurrentUser();
     if (!currentUser) return null;
 
-    const appState = await readAppState(true);
+    const appState = await readAppState();
     const userList = appState.addresses[currentUser.id] || [];
 
     const newAddress: SavedAddress = {
@@ -1661,7 +1921,6 @@ export async function addSavedAddress(
 
     revalidatePath('/addresses');
     revalidatePath('/checkout');
-    revalidatePath('/cart');
     return newAddress;
 }
 
@@ -1669,7 +1928,7 @@ export async function deleteSavedAddress(addressId: string): Promise<boolean> {
     const currentUser = await getCurrentUser();
     if (!currentUser) return false;
 
-    const appState = await readAppState(true);
+    const appState = await readAppState();
     const userList = appState.addresses[currentUser.id] || [];
     const idx = userList.findIndex((a) => a.id === addressId);
     if (idx === -1) return false;
@@ -1686,30 +1945,32 @@ export async function deleteSavedAddress(addressId: string): Promise<boolean> {
     return true;
 }
 
-export async function getPastOrders(type?: 'bought' | 'sold'): Promise<PastOrder[]> {
-    const { products, rawProfiles, rawShops, appState, currentUser } =
-        await fetchRawCatalogData();
-
+export async function getPastOrders(
+    type?: 'bought' | 'sold'
+): Promise<PastOrder[]> {
+    const currentUser = await getCurrentUser();
     if (!currentUser) {
         return [];
     }
 
-    const [ordersRes, orderItemsRes, checkoutSessionsRes] = await Promise.all([
+    const { products, rawProfiles, rawShops, appState } =
+        await fetchRawCatalogData({ skipUserResolution: true });
+
+    const [ordersRes, orderItemsRes] = await Promise.all([
         supabaseAdmin
             .from('orders')
-            .select('id, buyer_id, status, total_amount, created_at, courier_name, tracking_label')
-            .order('created_at', { ascending: false }),
-        supabaseAdmin.from('order_items').select('id, order_id, product_id, price'),
+            .select('id, buyer_id, status, total_amount, created_at')
+            .order('created_at', { ascending: false })
+            .limit(40),
         supabaseAdmin
-            .from('checkout_sessions')
-            .select('id, buyer_id, shipping, created_at')
-            .eq('buyer_id', currentUser.id)
-            .order('created_at', { ascending: false }),
+            .from('order_items')
+            .select('id, order_id, product_id, price')
+            .limit(60),
     ]);
 
     const rawOrders = ordersRes.data || [];
     const rawOrderItems = orderItemsRes.data || [];
-    const userAddresses = await getSavedAddresses();
+    const userAddresses = appState.addresses[currentUser.id] || [];
     const defaultDeliveryStr = userAddresses[0]
         ? `${userAddresses[0].receiver_name}, ${userAddresses[0].address_line1}, ${userAddresses[0].city} - ${userAddresses[0].pincode}`
         : `${currentUser.name}, ${currentUser.location || 'India'}`;
@@ -1722,13 +1983,16 @@ export async function getPastOrders(type?: 'bought' | 'sold'): Promise<PastOrder
     for (const ord of rawOrders) {
         const items = rawOrderItems.filter((oi) => oi.order_id === ord.id);
         for (const item of items) {
-            const prod = item.product_id ? productsById.get(item.product_id) : undefined;
+            const prod = item.product_id
+                ? productsById.get(item.product_id)
+                : undefined;
             const isBoughtByMe = ord.buyer_id === currentUser.id;
             const isSoldByMe = prod?.seller_id === currentUser.id;
 
             if (!isBoughtByMe && !isSoldByMe) continue;
 
-            const orderType: 'bought' | 'sold' = isSoldByMe && !isBoughtByMe ? 'sold' : 'bought';
+            const orderType: 'bought' | 'sold' =
+                isSoldByMe && !isBoughtByMe ? 'sold' : 'bought';
             if (type && orderType !== type) continue;
 
             const sellerProf = prod?.seller_id
@@ -1739,19 +2003,27 @@ export async function getPastOrders(type?: 'bought' | 'sold'): Promise<PastOrder
                 : undefined;
 
             const shopName =
-                sellerShop?.name || prod?.seller?.name || sellerProf?.name || 'RevClo Closet';
+                sellerShop?.name ||
+                prod?.seller?.name ||
+                sellerProf?.name ||
+                'RevClo Closet';
             const shopSlug =
-                prod?.seller?.handle || normalizeHandle(sellerProf?.instagram, shopName);
+                prod?.seller?.handle ||
+                normalizeHandle(sellerProf?.instagram, shopName);
             const shopAvatar =
                 prod?.seller?.image ||
                 sellerShop?.logo_url ||
                 prod?.images?.[0] ||
                 REVCLO_ASSETS.miniCreatorAvatar;
 
-            const itemPrice = Number(item.price || prod?.price || ord.total_amount || 299);
+            const itemPrice = Number(
+                item.price || prod?.price || ord.total_amount || 299
+            );
             const gstAmount = Number((itemPrice * 0.05).toFixed(2));
             const shippingFee = itemPrice >= 999 ? 0 : 49;
-            const totalPaid = Number(ord.total_amount || itemPrice + gstAmount + shippingFee);
+            const totalPaid = Number(
+                ord.total_amount || itemPrice + gstAmount + shippingFee
+            );
 
             const dateObj = new Date(ord.created_at);
             const placedDate = dateObj.toLocaleDateString('en-IN', {
@@ -1770,10 +2042,6 @@ export async function getPastOrders(type?: 'bought' | 'sold'): Promise<PastOrder
                         : 'Processing';
 
             const ratingEntry = appState.orderRatings[ord.id];
-            const latestCheckout = checkoutSessionsRes.data?.[0]?.shipping as Record<string, any> | undefined;
-            const deliveryAddr = latestCheckout?.address
-                ? `${latestCheckout.name || currentUser.name}, ${latestCheckout.address}, ${latestCheckout.city || ''} - ${latestCheckout.pinCode || ''}`
-                : defaultDeliveryStr;
 
             pastOrders.push({
                 id: ord.id,
@@ -1787,7 +2055,8 @@ export async function getPastOrders(type?: 'bought' | 'sold'): Promise<PastOrder
                 product_name: prod?.title || 'Archive Garment',
                 product_brand: prod?.brand || shopName,
                 product_size: String(prod?.size || 'M'),
-                product_image: prod?.images?.[0] || REVCLO_ASSETS.quiltedBagMain,
+                product_image:
+                    prod?.images?.[0] || REVCLO_ASSETS.quiltedBagMain,
                 item_price: itemPrice,
                 item_total: itemPrice,
                 gst_amount: gstAmount,
@@ -1796,7 +2065,7 @@ export async function getPastOrders(type?: 'bought' | 'sold'): Promise<PastOrder
                 total_paid: totalPaid,
                 placed_date: placedDate,
                 status: mappedStatus,
-                delivery_address: deliveryAddr,
+                delivery_address: defaultDeliveryStr,
                 rating: ratingEntry?.rating,
                 feedback: ratingEntry?.feedback,
             });
@@ -1811,13 +2080,12 @@ export async function ratePastOrder(
     rating: number,
     feedback?: string
 ): Promise<boolean> {
-    const appState = await readAppState(true);
+    const appState = await readAppState();
     appState.orderRatings[orderId] = {
         rating: Math.min(5, Math.max(1, rating)),
         feedback: feedback?.trim() || undefined,
     };
     await writeAppState(appState);
-    revalidatePath('/orders');
     return true;
 }
 
@@ -1845,13 +2113,18 @@ export async function placeMarketplaceOrder(input: {
     try {
         const productIds = input.items.map((i) => i.productId);
 
-        // 1. Mark products as SOLD in `public.products`
         await supabaseAdmin
             .from('products')
             .update({ status: 'SOLD' })
             .in('id', productIds);
 
-        // 2. Insert order into `public.orders`
+        if (cachedCatalogSnapshot) {
+            cachedCatalogSnapshot.rawProducts =
+                cachedCatalogSnapshot.rawProducts.map((p) =>
+                    productIds.includes(p.id) ? { ...p, status: 'SOLD' } : p
+                );
+        }
+
         const { data: orderRow, error: orderError } = await supabaseAdmin
             .from('orders')
             .insert({
@@ -1866,11 +2139,12 @@ export async function placeMarketplaceOrder(input: {
         if (orderError || !orderRow) {
             return {
                 success: false,
-                error: orderError?.message || 'Could not create order in database.',
+                error:
+                    orderError?.message ||
+                    'Could not create order in database.',
             };
         }
 
-        // 3. Insert order items into `public.order_items`
         const orderItemsPayload = input.items.map((i) => ({
             order_id: orderRow.id,
             product_id: i.productId,

@@ -66,6 +66,7 @@ async function uploadScanToSupabaseStorage(base64Image: string): Promise<string 
             .from('products')
             .upload(fileName, buffer, {
                 contentType: 'image/jpeg',
+                cacheControl: '31536000',
                 upsert: true,
             });
 

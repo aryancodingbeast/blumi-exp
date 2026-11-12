@@ -31,15 +31,17 @@ export default function CollectionDetailPage() {
         Promise.all([
             getCollectionBySlug(slug),
             getMarketplaceProducts({ collectionSlug: slug }),
-            getMarketplaceProducts({ sortBy: 'trending' }),
         ])
-            .then(([col, colProducts, allProducts]) => {
+            .then(async ([col, colProducts]) => {
                 if (!active) return;
                 setCollection(col);
                 setSavesCount(col?.saves_count || 64);
-                setProducts(
-                    colProducts.length > 0 ? colProducts : allProducts.slice(0, 12)
-                );
+                if (colProducts.length > 0) {
+                    setProducts(colProducts);
+                } else {
+                    const fallback = await getMarketplaceProducts({ sortBy: 'trending' });
+                    if (active) setProducts(fallback.slice(0, 12));
+                }
             })
             .finally(() => {
                 if (active) setLoading(false);
