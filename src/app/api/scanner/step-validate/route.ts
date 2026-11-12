@@ -8,44 +8,40 @@ export async function POST(request: NextRequest) {
         const body = await request.json()
         const { image, stepId } = body as { image: string; stepId: string }
 
-        if (!image) {
+        if (!image || !image.startsWith('data:image/')) {
             return NextResponse.json(
-                { error: 'Image is required' },
+                {
+                    valid: false,
+                    isClothing: false,
+                    feedback: 'Live camera frame is required for AI verification.',
+                },
                 { status: 400 }
             )
         }
 
         const normalizedStep = VALID_STEPS.includes(stepId) ? stepId : 'front'
-
-        // If the image is a local path (e.g. "/figma/...") instead of base64, validate immediately
-        if (image.startsWith('/')) {
-            const labels: Record<string, string> = {
-                front: 'Front view framing & lighting verified! Turn the item for the back shot.',
-                back: 'Back seams & structure verified! Now capture a close-up of the brand tag.',
-                logo: 'Brand tag & stitching verified! Launching Supabase Google Price Agent...',
-            }
-            return NextResponse.json({
-                valid: true,
-                isClothing: true,
-                viewType: normalizedStep,
-                feedback: labels[normalizedStep] || 'Photo verified by RevClo AI!',
-                confidence: 0.96,
-            })
-        }
-
         const result = await validateStepPhoto(normalizedStep, image)
 
         return NextResponse.json({
             valid: result.isValid,
             isClothing: result.isClothing,
             viewType: result.viewType,
+            detectedItem: result.detectedItem,
+            framingScore: result.framingScore,
+            lightingStatus: result.lightingStatus,
+            distanceHint: result.distanceHint,
             feedback: result.feedback,
             confidence: result.confidence,
         })
     } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Validation failed'
         return NextResponse.json(
-            { error: message },
+            {
+                valid: false,
+                isClothing: false,
+                feedback: `AI camera check error: ${message}`,
+                error: message,
+            },
             { status: 500 }
         )
     }

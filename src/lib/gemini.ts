@@ -1,7 +1,7 @@
 import type { VisionAnalysis } from '@/types/scanner'
 
-const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent'
-const GEMINI_FALLBACK_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent'
+const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent'
+const GEMINI_FAST_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent'
 
 const ANALYSIS_PROMPT = `You are an expert fashion archivist and clothing appraiser for RevClo, India's curated pre-loved fashion marketplace.
 
@@ -11,17 +11,17 @@ Analyze the provided clothing/accessory photo(s) and return ONLY a valid JSON ob
   "isClothing": boolean,
   "photoQuality": "good" | "acceptable" | "rejected",
   "qualityFeedback": "string explaining photo quality or framing",
-  "brand": "detected brand name (e.g. 'Diesel', 'Zara', 'H&M', 'Prada', 'Levi\\'s', 'QUILTED') or 'Archive Studio'",
-  "subBrand": "specific product title or model e.g. 'Quilted Leather Crossbody Bag', '1DR Metallic Shoulder Bag', '90s Oval Sunglasses', 'Pleated Tennis Dress'",
-  "category": "one of: 'Accessories', 'Dresses', 'Tops', 'Footwear', 'Jewellery'",
-  "garmentType": "specific sub-category e.g. 'Handbags', 'Glasses & Sunglasses', 'Mini Dresses', 'Jackets', 'Loafers', 'Knit Tops'",
-  "fabric": "e.g. '100% Lambskin Leather', 'Cotton Piqué', 'European Linen', 'Acetate', 'Heavyweight Denim'",
-  "color": "primary color e.g. 'Cream', 'Silver', 'Tortoise', 'Ivory', 'Espresso', 'Olive', 'Black'",
-  "pattern": "e.g. 'Quilted', 'Solid', 'Pleated', 'Distressed', 'Ribbed'",
+  "brand": "detected brand name from neck tag/logo/style (e.g. 'Diesel', 'Zara', 'H&M', 'Prada', 'Levi\\'s', 'Uniqlo', 'Nike', 'Mango') or 'Independent Label' if tag is not legible",
+  "subBrand": "specific product title or model describing the actual item in the photo (e.g. 'Ribbed Knit Cropped Cardigan', 'Heavyweight Boxy Graphic Tee', 'High-Rise Wide Leg Denim Jeans', 'Structured Leather Shoulder Bag')",
+  "category": "one of: 'Tops', 'Dresses', 'Bottoms', 'Outerwear', 'Accessories', 'Footwear', 'Jewellery'",
+  "garmentType": "specific sub-category e.g. 'Blouses & Shirts', 'T-Shirts & Tanks', 'Sweaters & Cardigans', 'Mini Dresses', 'Jeans & Denim', 'Jackets & Coats', 'Handbags', 'Sneakers'",
+  "fabric": "detected material e.g. '100% Cotton', 'Ribbed Knit', 'European Linen', 'Heavyweight Denim', 'Faux Leather', 'Polyester Blend'",
+  "color": "primary color visible in the photo e.g. 'Black', 'Cream', 'Navy', 'Olive', 'Burgundy', 'Charcoal', 'White'",
+  "pattern": "e.g. 'Solid', 'Striped', 'Graphic Print', 'Plaid', 'Floral', 'Textured Knit'",
   "condition": "new_with_tags" | "like_new" | "gently_used" | "well_worn" | "heavily_worn",
-  "conditionDetails": "concise 1-2 sentence buyer-facing description of the piece's condition, texture, and hardware",
-  "wearTearNotes": ["array of specific observations"],
-  "size": "detected size ('XS', 'S', 'M', 'Large', 'UK9', 'One Size') or 'M'",
+  "conditionDetails": "concise 1-2 sentence buyer-facing description of the actual piece's condition, fabric drape, stitching, and wear",
+  "wearTearNotes": ["array of specific visual observations from the photos"],
+  "size": "detected size from label ('XS', 'S', 'M', 'L', 'XL') or best visual estimate ('S', 'M', 'L')",
   "estimatedGender": "mens" | "womens" | "unisex" | "kids",
   "confidence": 0.0 to 1.0,
   "isUserBrandMatch": true,
@@ -29,60 +29,75 @@ Analyze the provided clothing/accessory photo(s) and return ONLY a valid JSON ob
 }
 
 RULES:
-- Accept clothing, handbags, footwear, sunglasses, jewellery, and fashion accessories as isClothing = true.
-- Look carefully at any visible brand tags, labels, hardware, stitching, and silhouette to identify the exact brand and specific model name in "subBrand".
-- Determine a realistic Indian retail MSRP (in INR ₹) for this brand and item in "estimatedBrandPrice" (e.g., Zara dress ~3990, H&M top ~1499, Diesel bag ~28000, Levi's jeans ~3499, boutique quilted bag ~2499).
+- Carefully inspect all provided photos (front view, back view, and close-up brand tag/label).
+- Read any text visible on the neck label, care tag, or logo in the 3rd photo to extract the real brand and size.
+- Determine a realistic Indian retail MSRP (in INR ₹) for this specific brand and garment in "estimatedBrandPrice" (e.g., H&M tee ~999, Zara dress ~3590, Levi's jeans ~3299, Uniqlo knit ~2490, Nike hoodie ~4495).
 - Return ONLY the JSON object, no markdown or explanations.`
 
 const STEP_VALIDATION_PROMPTS: Record<string, string> = {
-    front: `You are a real-time AI photography guide for RevClo fashion marketplace. The user is capturing Step 1: FRONT VIEW of a clothing item, bag, shoe, or accessory (can be worn, on a hanger, or cleanly flat-laid).
+    front: `You are a real-time AI camera guide for the RevClo fashion marketplace.
+The user is pointing their camera to capture STEP 1: FRONT VIEW of a clothing item, shoe, bag, or fashion accessory (it can be held up, worn, on a hanger, or flat-laid).
 
-Analyze this photo and return ONLY a JSON object:
+Inspect this live camera frame and return ONLY a valid JSON object:
 {
   "isValid": boolean,
   "isClothing": boolean,
-  "isWorn": boolean,
   "viewType": "front",
-  "feedback": "short, encouraging real-time camera guidance string (max 14 words)",
+  "detectedItem": "short 2-4 word description of what you see (e.g. 'Black cotton t-shirt', 'Blue denim jacket', 'Person face only - no garment', 'Blurry / dark frame')",
+  "framingScore": number (0 to 100),
+  "lightingStatus": "optimal" | "low" | "glare",
+  "distanceHint": "optimal" | "move_closer" | "move_back" | "center_item",
+  "feedback": "1 short, direct real-time camera coaching instruction (max 14 words)",
   "confidence": 0.0 to 1.0
 }
 
-RULES:
-- Set isValid = true if a fashion item (garment, handbag, footwear, sunglasses, jewellery) is clearly visible from the front with decent lighting.
-- If valid, give specific positive confirmation in feedback (e.g. "Front silhouette & lighting verified! Next: capture the back or reverse angle.").
-- If blurry, dark, or no fashion item is visible, set isValid = false and give actionable guidance (e.g. "Move into brighter light and center the front of the item in frame.").`,
+STRICT RULES:
+- Set "isValid": true ONLY if a real clothing item, bag, footwear, or fashion accessory is clearly visible, reasonably centered, and not severely blurry or pitch black.
+- If the image only shows a blank wall, room background, laptop screen, ceiling, or a person's face without clearly showing the garment, set "isValid": false and "isClothing": false, and tell the user in "feedback" to hold the front of the garment inside the frame.
+- If the garment is cut off or too far away, set "isValid": false, set "distanceHint" appropriately, and guide the user (e.g. "Step back slightly so the full front silhouette fits inside the reticle.").
+- If valid, confirm the exact item you see in "feedback" (e.g. "Front view of black knit top verified! Turn it around for the back shot.").`,
 
-    back: `You are a real-time AI photography guide for RevClo fashion marketplace. The user is capturing Step 2: BACK / REVERSE VIEW of the fashion item to show back seams, stitching, or lining.
+    back: `You are a real-time AI camera guide for the RevClo fashion marketplace.
+The user is pointing their camera to capture STEP 2: BACK / REVERSE VIEW of their fashion item to show back seams, reverse silhouette, or back stitching.
 
-Analyze this photo and return ONLY a JSON object:
+Inspect this live camera frame and return ONLY a valid JSON object:
 {
   "isValid": boolean,
   "isClothing": boolean,
-  "isWorn": boolean,
   "viewType": "back",
-  "feedback": "short, encouraging real-time camera guidance string (max 14 words)",
+  "detectedItem": "short 2-4 word description of what is visible",
+  "framingScore": number (0 to 100),
+  "lightingStatus": "optimal" | "low" | "glare",
+  "distanceHint": "optimal" | "move_closer" | "move_back" | "center_item",
+  "feedback": "1 short, direct real-time camera coaching instruction (max 14 words)",
   "confidence": 0.0 to 1.0
 }
 
-RULES:
-- Set isValid = true if a fashion item or its reverse/detail angle is clearly visible.
-- If valid, feedback should say e.g. "Back structure & seams verified! Final step: capture the brand label or tag."`,
+STRICT RULES:
+- Set "isValid": true ONLY if a clothing item or accessory is clearly visible in the frame with decent lighting and sharpness.
+- If no garment is visible or the shot is blurry/dark, set "isValid": false and give specific real-time guidance in "feedback".
+- If valid, confirm what you see (e.g. "Back seams & fabric condition verified! Next: move close to the brand tag.").`,
 
-    logo: `You are a real-time AI photography guide for RevClo fashion marketplace. The user is capturing Step 3: BRAND TAG, LABEL, OR HARDWARE CLOSE-UP for authenticity & price verification.
+    logo: `You are a real-time AI camera guide for the RevClo fashion marketplace.
+The user is pointing their camera to capture STEP 3: BRAND TAG / NECK LABEL / CLOSE-UP FABRIC DETAIL for authenticity and Google price lookup.
 
-Analyze this photo and return ONLY a JSON object:
+Inspect this live camera frame and return ONLY a valid JSON object:
 {
   "isValid": boolean,
   "isClothing": boolean,
-  "isWorn": boolean,
   "viewType": "logo",
-  "feedback": "short, encouraging real-time camera guidance string (max 14 words)",
+  "detectedItem": "detected brand/tag text or fabric close-up (e.g. 'Zara neck tag', 'Care label & stitching', 'Close-up fabric weave')",
+  "framingScore": number (0 to 100),
+  "lightingStatus": "optimal" | "low" | "glare",
+  "distanceHint": "optimal" | "move_closer" | "move_back" | "center_item",
+  "feedback": "1 short, direct real-time camera coaching instruction (max 14 words)",
   "confidence": 0.0 to 1.0
 }
 
-RULES:
-- Set isValid = true if the photo shows a brand tag, neck label, care label, hardware stamp, or close-up detail of the fashion item.
-- If valid, feedback should say e.g. "Brand tag & stitching detail locked! Launching Google Price Agent..."`,
+STRICT RULES:
+- Set "isValid": true if the photo shows a brand tag, neck label, care tag, hardware logo stamp, OR a clear close-up of the garment's collar/stitching/fabric detail.
+- If no garment, tag, or fabric is in frame, or if it is too blurry to see any detail, set "isValid": false, "distanceHint": "move_closer", and instruct the user in "feedback" (e.g. "Move 5 inches closer and hold steady on the neck tag or collar stitching.").
+- If valid, mention the detected tag or fabric detail in "feedback" (e.g. "Brand label & stitching locked! Launching Google Price Agent...").`,
 }
 
 STEP_VALIDATION_PROMPTS.label = STEP_VALIDATION_PROMPTS.logo
@@ -98,17 +113,24 @@ function getApiKey(): string {
 
 function buildImageParts(base64Images: string[]) {
     return base64Images.map((img) => {
+        const mimeMatch = img.match(/^data:(image\/\w+);base64,/)
+        const mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg'
         const cleanBase64 = img.replace(/^data:image\/\w+;base64,/, '')
         return {
             inlineData: {
-                mimeType: 'image/jpeg',
+                mimeType,
                 data: cleanBase64,
             },
         }
     })
 }
 
-async function callGemini(prompt: string, base64Images: string[], temperature = 0.1) {
+async function callGemini(
+    prompt: string,
+    base64Images: string[],
+    temperature = 0.1,
+    preferFastModel = false
+) {
     const apiKey = getApiKey()
     const imageParts = buildImageParts(base64Images)
 
@@ -121,19 +143,22 @@ async function callGemini(prompt: string, base64Images: string[], temperature = 
         generationConfig: {
             temperature,
             topP: 0.8,
-            maxOutputTokens: 2048,
+            maxOutputTokens: 1024,
             responseMimeType: 'application/json',
         },
     }
 
-    let response = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
+    const primaryUrl = preferFastModel ? GEMINI_FAST_URL : GEMINI_API_URL
+    const secondaryUrl = preferFastModel ? GEMINI_API_URL : GEMINI_FAST_URL
+
+    let response = await fetch(`${primaryUrl}?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestBody),
     })
 
     if (!response.ok) {
-        response = await fetch(`${GEMINI_FALLBACK_URL}?key=${apiKey}`, {
+        response = await fetch(`${secondaryUrl}?key=${apiKey}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(requestBody),
@@ -165,13 +190,17 @@ export async function analyzeWithGemini(
         searchHints || userClaimedBrand
             ? `${ANALYSIS_PROMPT}\n\n[GOOGLE LENS & MARKET HINTS]\nGoogle found these visual matches: ${searchHints || 'None'}.\nUser claimed brand: ${userClaimedBrand || 'None'}. Use these hints to pinpoint the exact brand, item model name, and real Indian retail MSRP.`
             : ANALYSIS_PROMPT
-    return callGemini(finalPrompt, base64Images)
+    return callGemini(finalPrompt, base64Images, 0.1, false)
 }
 
 export interface StepValidationResult {
     isValid: boolean
     isClothing: boolean
     viewType: string
+    detectedItem?: string
+    framingScore?: number
+    lightingStatus?: 'optimal' | 'low' | 'glare'
+    distanceHint?: 'optimal' | 'move_closer' | 'move_back' | 'center_item'
     feedback: string
     confidence: number
 }
@@ -181,22 +210,17 @@ export async function validateStepPhoto(
     base64Image: string
 ): Promise<StepValidationResult> {
     const prompt = STEP_VALIDATION_PROMPTS[stepId] || STEP_VALIDATION_PROMPTS.front
-    try {
-        return await callGemini(prompt, [base64Image], 0.05)
-    } catch {
-        // Fallback if offline or rate-limited so user guidance never dead-ends
-        const fallbackMessages: Record<string, string> = {
-            front: 'Front silhouette & lighting verified! Next: capture the back angle.',
-            back: 'Back structure & seams verified! Final step: capture the brand tag.',
-            logo: 'Brand label & detail locked! Ready for Google price scan.',
-        }
-        return {
-            isValid: true,
-            isClothing: true,
-            viewType: stepId,
-            feedback: fallbackMessages[stepId] || 'Photo angle verified!',
-            confidence: 0.94,
-        }
+    const res = await callGemini(prompt, [base64Image], 0.05, true)
+    return {
+        isValid: Boolean(res.isValid),
+        isClothing: Boolean(res.isClothing),
+        viewType: res.viewType || stepId,
+        detectedItem: res.detectedItem || (res.isClothing ? 'Garment detected' : 'No garment detected'),
+        framingScore: typeof res.framingScore === 'number' ? res.framingScore : res.isValid ? 92 : 45,
+        lightingStatus: res.lightingStatus || 'optimal',
+        distanceHint: res.distanceHint || (res.isValid ? 'optimal' : 'center_item'),
+        feedback: res.feedback || (res.isValid ? 'Shot verified!' : 'Center the garment in bright light and hold steady.'),
+        confidence: typeof res.confidence === 'number' ? res.confidence : res.isValid ? 0.92 : 0.3,
     }
 }
 
@@ -221,7 +245,7 @@ export async function callGeminiText(prompt: string, temperature = 0.3): Promise
     })
 
     if (!response.ok) {
-        response = await fetch(`${GEMINI_FALLBACK_URL}?key=${apiKey}`, {
+        response = await fetch(`${GEMINI_FAST_URL}?key=${apiKey}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(requestBody),

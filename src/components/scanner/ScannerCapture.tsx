@@ -46,27 +46,39 @@ export default function ScannerCapture({ onPhotosReady }: ScannerCaptureProps) {
         setStepStates(prev => ({ ...prev, [stepId]: { ...prev[stepId], ...patch } }))
     }
 
-    // Start camera ONCE, keep it alive the entire time
+    // Start camera ONCE, keep it alive the entire time (with fallback from environment -> default webcam)
     useEffect(() => {
         let cancelled = false
         const init = async () => {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } },
-                })
-                if (cancelled) { stream.getTracks().forEach(t => t.stop()); return }
-                streamRef.current = stream
-                if (videoRef.current) {
-                    videoRef.current.srcObject = stream
-                    await videoRef.current.play()
-                }
-                setCameraReady(true)
-            } catch (err: any) {
-                if (!cancelled) {
-                    setCameraError(err.message || 'Camera access denied')
-                    setCameraReady(false)
+            const tries: MediaStreamConstraints[] = [
+                { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 960 } } },
+                { video: { width: { ideal: 1280 }, height: { ideal: 720 } } },
+                { video: true },
+            ]
+            let stream: MediaStream | null = null
+            let lastErr = ''
+            for (const c of tries) {
+                try {
+                    stream = await navigator.mediaDevices.getUserMedia(c)
+                    if (stream) break
+                } catch (e: any) {
+                    lastErr = e?.message || 'Camera access denied'
                 }
             }
+            if (!stream) {
+                if (!cancelled) {
+                    setCameraError(lastErr || 'Camera access denied')
+                    setCameraReady(false)
+                }
+                return
+            }
+            if (cancelled) { stream.getTracks().forEach(t => t.stop()); return }
+            streamRef.current = stream
+            if (videoRef.current) {
+                videoRef.current.srcObject = stream
+                await videoRef.current.play().catch(() => {})
+            }
+            setCameraReady(true)
         }
         init()
         return () => {
